@@ -16,24 +16,31 @@ TOKEN = "8695639459:AAGNc7Y-9ShCxgQTKAml90FNpv0yAoDt3Ts"
 CHANNEL_ID = -1003924784582
 
 SEASONS_EPISODES = {
-    1: {"sub": 55, "dub": 86},
-    2: {"sub": 42, "dub": 42},
-    3: {"sub": 62, "dub": 30},
-    4: {"sub": 37, "dub": 37},
-    5: {"sub": 34, "dub": 34},
-    6: {"sub": 36, "dub": 36},
-    7: {"sub": 38, "dub": 38},
-    8: {"sub": 39, "dub": 39},
-    9: {"sub": 39, "dub": 39},
-    10: {"sub": 39, "dub": 39},
+    1: {"sub": 55, "dub": 0},
+    2: {"sub": 42, "dub": 0},
+    3: {"sub": 22, "dub": 0},
+    4: {"sub": 30, "dub": 0},
+    5: {"sub": 35, "dub": 0},
+    6: {"sub": 33, "dub": 0},
+    7: {"sub": 31, "dub": 0},
+    8: {"sub": 47, "dub": 0},
+    9: {"sub": 34, "dub": 0},
+    10: {"sub": 37, "dub": 0},
     11: {"sub": 0, "dub": 0}
 }
 
-# 📂 ربط الحلقات تسلسلياً بناءً على البداية من الرسالة 1
+# 📂 ربط الحلقات بالرسائل الصحيحة حسب أرقام رسائل قناتك الجديدة
 EPISODES_MSG_IDS = {
-    (1, "sub"): {i: 1 + i - 1 for i in range(1, 56)},
-    (2, "sub"): {i: 56 + i - 1 for i in range(1, 43)},
-    (3, "sub"): {i: 98 + i - 1 for i in range(1, 63)},
+    (1, "sub"): {i: 206 + i - 1 for i in range(1, 56)},
+    (2, "sub"): {i: 302 + i - 1 for i in range(1, 43)},
+    (3, "sub"): {i: 303 + i - 1 for i in range(1, 23)},
+    (4, "sub"): {i: 325 + i - 1 for i in range(1, 31)},
+    (5, "sub"): {i: 355 + i - 1 for i in range(1, 36)},
+    (6, "sub"): {i: 423 + i - 1 for i in range(1, 34)},
+    (7, "sub"): {i: 456 + i - 1 for i in range(1, 32)},
+    (8, "sub"): {i: 487 + i - 1 for i in range(1, 48)},
+    (9, "sub"): {i: 534 + i - 1 for i in range(1, 35)},
+    (10, "sub"): {i: 568 + i - 1 for i in range(1, 38)},
     (1, "dub"): {}
 }
 
@@ -66,7 +73,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     row = []
                 keyboard.append([KeyboardButton("⚠️ الموسم 11 (مترجم) - متوقف")])
             else:
-                row.append(KeyboardButton(f"الموسم {season} (مترجم)"))
+                count = SEASONS_EPISODES[season]["sub"]
+                row.append(KeyboardButton(f"الموسم {season} ({count} حلقة)"))
                 if len(row) == 2:
                     keyboard.append(row)
                     row = []
@@ -87,7 +95,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     row = []
                 keyboard.append([KeyboardButton("⚠️ الموسم 11 (مدبلج) - متوقف")])
             else:
-                row.append(KeyboardButton(f"الموسم {season} (مدبلج)"))
+                count = SEASONS_EPISODES[season]["dub"]
+                if count > 0:
+                    row.append(KeyboardButton(f"الموسم {season} ({count} حلقة)"))
+                else:
+                    row.append(KeyboardButton(f"الموسم {season} (فارغ)"))
                 if len(row) == 2:
                     keyboard.append(row)
                     row = []
@@ -101,7 +113,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             parts = text.split(" ")
             season_num = int(parts[1])
-            media_type = "sub" if "مترجم" in text else "dub"
+            media_type = "sub" if "مترجم" in text or "حلقة" in text and context.user_data.get("media_type") == "sub" else "dub"
+            # تصحيح التقاط نوع العرض بدقة من السياق المخزن
+            media_type = context.user_data.get("media_type", "sub")
+            
             context.user_data["current_season"] = season_num
 
             total_episodes = SEASONS_EPISODES[season_num][media_type]
@@ -150,7 +165,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("⚠️ يرجى استخدام الأزرار الموجودة أسفل الشاشة فقط.")
 
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def error_handler(object, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.error("Exception while handling an update:", exc_info=context.error)
 
 def run_web_server():
@@ -168,7 +183,6 @@ def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_error_handler(error_handler)
 
-    # استخدام drop_pending_updates=True لقتل أي اتصال قديم عالق وتجنب خطأ التضارب
     application.run_polling(drop_pending_updates=True, stop_signals=None)
 
 if __name__ == "__main__":
