@@ -1,3 +1,4 @@
+
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
@@ -10,7 +11,6 @@ logger = logging.getLogger(__name__)
 TOKEN = "8695639459:AAEdjd-BqUway2ZFFh0kB1jRAgjiDybZjRQ"
 
 # أعداد الحلقات الحقيقية لجميع المواسم (الترتيب: مترجم، مدبلج)
-# الموسم 11 متوقف (Discontinued)
 SEASONS_EPISODES = {
     1: {"sub": 55, "dub": 86},
     2: {"sub": 42, "dub": 42},
@@ -25,24 +25,22 @@ SEASONS_EPISODES = {
     11: {"sub": 0, "dub": 0}  # متوقف
 }
 
-# قاعدة بيانات وهمية لتخزين file_id للحلقات
-episodes_db = {}
-
 # أمر البدء /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [
-            InlineKeyboardButton("🎬 مترجم", callback_data="type_sub"),
-            InlineKeyboardButton("🎙️ مدبلج", callback_data="type_dub")
+            InlineKeyboardButton("🎬 النسخة المترجمة", callback_data="type_sub"),
+            InlineKeyboardButton("🎙️ النسخة المدبلجة", callback_data="type_dub")
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "أهلاً بك في بوت مسلسل وادي الذئاب الرسمي.\nاختر النسخة التي تود متابعتها:",
-        reply_markup=reply_markup
+        "🐺 **أهلاً بك في بوت مسلسل وادي الذئاب الرسمي**\n\nاختر النسخة التي تود متابعتها:",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
     )
 
-# معالجة الأزرار
+# معالجة الأزرار بشكل احترافي ومنظم
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -53,18 +51,32 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         type_name = "مترجم" if media_type == "sub" else "مدبلج"
         
         keyboard = []
+        row = []
+        
         for season in range(1, 12):
             if season == 11:
-                btn_text = f"الموسم 11 ({type_name}) - ⚠️ متوقف"
+                # إذا وصلنا للموسم الحادي عشر، نضعه في صف منفصل وواضح
+                if row:
+                    keyboard.append(row)
+                    row = []
+                btn_text = f"⚠️ الموسم 11 ({type_name}) - متوقف"
+                keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"season_{media_type}_{season}")])
             else:
                 count = SEASONS_EPISODES[season][media_type]
-                btn_text = f"الموسم {season} ({type_name}) - {count} حلقة"
-            
-            keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"season_{media_type}_{season}")])
+                btn_text = f"الموسم {season} ({count} حلقة)"
+                row.append(InlineKeyboardButton(btn_text, callback_data=f"season_{media_type}_{season}"))
+                
+                # ترتيب موسمين في كل صف لتنسيق احترافي
+                if len(row) == 2:
+                    keyboard.append(row)
+                    row = []
         
+        if row:
+            keyboard.append(row)
+            
         keyboard.append([InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="main_menu")])
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text=f"اختر الموسم ({type_name}):", reply_markup=reply_markup)
+        await query.edit_message_text(text=f"📂 اختر الموسم المطلوبة ({type_name}):", reply_markup=reply_markup)
 
     elif data.startswith("season_"):
         parts = data.split("_")
@@ -73,30 +85,39 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if season_num == 11:
             await query.edit_message_text(
-                text="⚠️ عذراً، الموسم الحادي عشر متوقف حالياً وغير متوفر.",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع للمواسم", callback_data=f"type_{media_type}")]])
+                text="⚠️ **عذراً، الموسم الحادي عشر متوقف حالياً وغير متوفر.**",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع للمواسم", callback_data=f"type_{media_type}")]]),
+                parse_mode="Markdown"
             )
             return
 
         total_episodes = SEASONS_EPISODES[season_num][media_type]
         keyboard = []
+        row = []
         
         for ep in range(1, total_episodes + 1):
-            keyboard.append([InlineKeyboardButton(f"الحلقة {ep}", callback_data=f"ep_{media_type}_{season_num}_{ep}")])
+            row.append(InlineKeyboardButton(f"ح {ep}", callback_data=f"ep_{media_type}_{season_num}_{ep}"))
+            # ترتيب الحلقات 4 في كل صف لتكون مريحة وسريعة التصفح
+            if len(row) == 4:
+                keyboard.append(row)
+                row = []
+                
+        if row:
+            keyboard.append(row)
             
         keyboard.append([InlineKeyboardButton("🔙 رجوع للمواسم", callback_data=f"type_{media_type}")])
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text=f"اختر الحلقة من الموسم {season_num}:", reply_markup=reply_markup)
+        await query.edit_message_text(text=f"🎬 اختر الحلقة من الموسم {season_num}:", reply_markup=reply_markup)
 
     elif data == "main_menu":
         keyboard = [
             [
-                InlineKeyboardButton("🎬 مترجم", callback_data="type_sub"),
-                InlineKeyboardButton("🎙️ مدبلج", callback_data="type_dub")
+                InlineKeyboardButton("🎬 النسخة المترجمة", callback_data="type_sub"),
+                InlineKeyboardButton("🎙️ النسخة المدبلجة", callback_data="type_dub")
             ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text="أهلاً بك مجدداً. اختر النسخة:", reply_markup=reply_markup)
+        await query.edit_message_text(text="🐺 **أهلاً بك مجدداً. اختر النسخة:**", reply_markup=reply_markup, parse_mode="Markdown")
 
 def main():
     application = Application.builder().token(TOKEN).build()
