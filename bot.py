@@ -10,7 +10,7 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # التوكن الخاص بك
-TOKEN = "8695639459:AAEdjd-BqUway2ZFFh0kB1jRAgjiDybZjRQ"
+TOKEN = "8695639459:AAGNc7Y-9ShCxgQTKAml90FNpv0yAoDt3Ts"
 CHANNEL_ID = -1001234567890  
 
 SEASONS_EPISODES = {
