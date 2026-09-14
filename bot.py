@@ -11,7 +11,9 @@ logger = logging.getLogger(__name__)
 
 # التوكن الخاص بك
 TOKEN = "8695639459:AAGNc7Y-9ShCxgQTKAml90FNpv0yAoDt3Ts"
-CHANNEL_ID = -1001234567890  
+
+# 📌 معرف قناتك استناداً إلى الروابط التي أرسلتها
+CHANNEL_ID = -1001289148000  # إذا كان معرف قناتك الرقمي مختلفاً، سنقوم بضبطه فوراً
 
 SEASONS_EPISODES = {
     1: {"sub": 55, "dub": 86},
@@ -27,9 +29,24 @@ SEASONS_EPISODES = {
     11: {"sub": 0, "dub": 0}
 }
 
+# 📂 ربط حلقات الموسم الأول (مترجم) بالكامل بناءً على الروابط التي أرسلتها
 EPISODES_MSG_IDS = {
-    (1, "sub"): {1: 15},
-    (1, "dub"): {1: 102}
+    (1, "sub"): {
+        1: 4,   2: 5,   3: 6,   4: 7,   5: 8,
+        6: 9,   7: 10,  8: 11,  9: 12,  10: 13,
+        11: 14, 12: 15, 13: 16, 14: 17, 15: 18,
+        16: 19, 17: 20, 18: 21, 19: 22, 20: 23,
+        21: 24, 22: 25, 23: 26, 24: 27, 25: 28,
+        26: 29, 27: 30, 28: 31, 29: 32, 30: 33,
+        31: 34, 32: 35, 33: 36, 34: 37, 35: 38,
+        36: 39, 37: 40, 38: 41, 39: 42, 40: 43,
+        41: 44, 42: 45, 43: 46, 44: 47, 45: 48,
+        46: 49, 47: 50, 48: 51, 49: 52, 50: 53,
+        51: 54, 52: 55, 53: 56, 54: 57, 55: 58
+    },
+    (1, "dub"): {
+        # سنقوم بملئها لاحقاً عند الانتقال للمدبلج
+    }
 }
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -111,7 +128,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 await context.bot.copy_message(chat_id=query.message.chat_id, from_chat_id=CHANNEL_ID, message_id=msg_id)
             except Exception as e:
-                await query.message.reply_text("⚠️ حدث خطأ أثناء جلب الحلقة، تأكد من أن البوت مشرف في القناة.")
+                await query.message.reply_text("⚠️ حدث خطأ أثناء جلب الحلقة، تأكد من أن البوت مشرف في القناة وأن معرف القناة صحيح.")
         else:
             await query.message.reply_text(f"⚠️ عذراً، حلقة الموسم {season_num} - الحلقة {ep_num} لم يتم ربطها بعد.")
 
@@ -119,23 +136,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [[InlineKeyboardButton("🎬 النسخة المترجمة", callback_data="type_sub"), InlineKeyboardButton("🎙️ النسخة المدبلجة", callback_data="type_dub")]]
         await query.edit_message_text(text="🐺 **أهلاً بك مجدداً. اختر النسخة:**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
-# --- تشغيل سيرفر خفيف في الخلفية لترضية رندر ---
 def run_web_server():
     port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(('0.0.0.0', port), BaseHTTPRequestHandler)
     server.serve_forever()
 
 def main():
-    # تشغيل سيرفر الويب في خيط خلفي هادئ
     server_thread = threading.Thread(target=run_web_server, daemon=True)
     server_thread.start()
 
-    # تشغيل البوت بالطريقة النظامية المباشرة في الخيط الرئيسي
     application = Application.builder().token(TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button_handler))
-    
-    # استخدام مرسل الإشارات المعطل لتجنب أي مشاكل مع الخيوط
     application.run_polling(stop_signals=None)
 
 if __name__ == "__main__":
