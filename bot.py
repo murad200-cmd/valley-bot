@@ -16,23 +16,24 @@ TOKEN = "8695639459:AAGNc7Y-9ShCxgQTKAml90FNpv0yAoDt3Ts"
 CHANNEL_ID = -1003924784582
 
 SEASONS_EPISODES = {
-    1: {"sub": 55, "dub": 0},
-    2: {"sub": 42, "dub": 0},
-    3: {"sub": 22, "dub": 0},
-    4: {"sub": 30, "dub": 0},
-    5: {"sub": 35, "dub": 0},
-    6: {"sub": 33, "dub": 0},
-    7: {"sub": 31, "dub": 0},
-    8: {"sub": 47, "dub": 0},
-    9: {"sub": 34, "dub": 0},
-    10: {"sub": 37, "dub": 0},
+    1: {"sub": 55, "dub": 86},
+    2: {"sub": 42, "dub": 70},
+    3: {"sub": 22, "dub": 124},
+    4: {"sub": 30, "dub": 62},
+    5: {"sub": 35, "dub": 78},
+    6: {"sub": 33, "dub": 72},
+    7: {"sub": 31, "dub": 78},
+    8: {"sub": 47, "dub": 84},
+    9: {"sub": 34, "dub": 34},
+    10: {"sub": 37, "dub": 37},
     11: {"sub": 0, "dub": 0}
 }
 
-# 📂 ربط الحلقات بالرسائل الصحيحة حسب أرقام رسائل قناتك الجديدة
+# 📂 ربط الحلقات بالرسائل الصحيحة لكل من القسمين (المترجم والمدبلج)
 EPISODES_MSG_IDS = {
+    # القسم المترجم
     (1, "sub"): {i: 206 + i - 1 for i in range(1, 56)},
-    (2, "sub"): {i: 261 + i - 1 for i in range(1, 43)},  # الموسم الثاني يبدأ من 261 ويمتد لـ 42 حلقة
+    (2, "sub"): {i: 261 + i - 1 for i in range(1, 43)},
     (3, "sub"): {i: 303 + i - 1 for i in range(1, 23)},
     (4, "sub"): {i: 325 + i - 1 for i in range(1, 31)},
     (5, "sub"): {i: 355 + i - 1 for i in range(1, 36)},
@@ -41,7 +42,18 @@ EPISODES_MSG_IDS = {
     (8, "sub"): {i: 487 + i - 1 for i in range(1, 48)},
     (9, "sub"): {i: 534 + i - 1 for i in range(1, 35)},
     (10, "sub"): {i: 568 + i - 1 for i in range(1, 38)},
-    (1, "dub"): {}
+
+    # القسم المدبلج
+    (1, "dub"): {i: 605 + i - 1 for i in range(1, 87)},
+    (2, "dub"): {i: 691 + i - 1 for i in range(1, 71)},
+    (3, "dub"): {i: 761 + i - 1 for i in range(1, 125)},
+    (4, "dub"): {i: 885 + i - 1 for i in range(1, 63)},
+    (5, "dub"): {i: 947 + i - 1 for i in range(1, 79)},
+    (6, "dub"): {i: 1025 + i - 1 for i in range(1, 73)},
+    (7, "dub"): {i: 1175 + i - 1 for i in range(1, 79)},
+    (8, "dub"): {i: 1253 + i - 1 for i in range(1, 85)},
+    (9, "dub"): {i: 1337 + i - 1 for i in range(1, 35)},
+    (10, "dub"): {i: 1371 + i - 1 for i in range(1, 38)},
 }
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -82,7 +94,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard.append(row)
         keyboard.append([KeyboardButton("🔙 القائمة الرئيسية")])
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-        await update.message.reply_text("📂 اختر الموسم المطلوب:", reply_markup=reply_markup)
+        await update.message.reply_text("📂 اختر الموسم المطلوب (مترجم):", reply_markup=reply_markup)
 
     elif text == "🎙️ النسخة المدبلجة" or text == "🔙 المواسم المدبلجة":
         context.user_data["media_type"] = "dub"
@@ -96,10 +108,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 keyboard.append([KeyboardButton("⚠️ الموسم 11 (مدبلج) - متوقف")])
             else:
                 count = SEASONS_EPISODES[season]["dub"]
-                if count > 0:
-                    row.append(KeyboardButton(f"الموسم {season} ({count} حلقة)"))
-                else:
-                    row.append(KeyboardButton(f"الموسم {season} (فارغ)"))
+                row.append(KeyboardButton(f"الموسم {season} ({count} حلقة)"))
                 if len(row) == 2:
                     keyboard.append(row)
                     row = []
@@ -107,7 +116,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard.append(row)
         keyboard.append([KeyboardButton("🔙 القائمة الرئيسية")])
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-        await update.message.reply_text("📂 اختر الموسم المطلوب:", reply_markup=reply_markup)
+        await update.message.reply_text("📂 اختر الموسم المطلوب (مدبلج):", reply_markup=reply_markup)
 
     elif text.startswith("الموسم "):
         try:
