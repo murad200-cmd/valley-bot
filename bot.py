@@ -9,13 +9,10 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# التوكن الصحيح والكامل للبوت
-TOKEN = "8695639459:AAGMV897m_bwUSPMogyCd9Z-1LOO9e2NBJI"
-
-# 📌 معرف قناتك
+# التوكن الخاص بك
+TOKEN = "8695639459:AAEdjd-BqUway2ZFFh0kB1jRAgjiDybZjRQ"
 CHANNEL_ID = -1001234567890  
 
-# أعداد الحلقات لجميع المواسم
 SEASONS_EPISODES = {
     1: {"sub": 55, "dub": 86},
     2: {"sub": 42, "dub": 42},
@@ -30,7 +27,6 @@ SEASONS_EPISODES = {
     11: {"sub": 0, "dub": 0}
 }
 
-# قاموس أرقام رسائل الحلقات
 EPISODES_MSG_IDS = {
     (1, "sub"): {1: 15},
     (1, "dub"): {1: 102}
@@ -123,29 +119,24 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [[InlineKeyboardButton("🎬 النسخة المترجمة", callback_data="type_sub"), InlineKeyboardButton("🎙️ النسخة المدبلجة", callback_data="type_dub")]]
         await query.edit_message_text(text="🐺 **أهلاً بك مجدداً. اختر النسخة:**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
-# --- سيرفر الويب الأساسي لـ Render ---
-class SimpleHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Bot is alive and running!")
-
+# --- تشغيل سيرفر خفيف في الخلفية لترضية رندر ---
 def run_web_server():
     port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(('0.0.0.0', port), SimpleHandler)
+    server = HTTPServer(('0.0.0.0', port), BaseHTTPRequestHandler)
     server.serve_forever()
 
-# --- تشغيل البوت في الخلفية ---
-def run_telegram_bot():
+def main():
+    # تشغيل سيرفر الويب في خيط خلفي هادئ
+    server_thread = threading.Thread(target=run_web_server, daemon=True)
+    server_thread.start()
+
+    # تشغيل البوت بالطريقة النظامية المباشرة في الخيط الرئيسي
     application = Application.builder().token(TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button_handler))
-    application.run_polling(drop_pending_updates=True)
+    
+    # استخدام مرسل الإشارات المعطل لتجنب أي مشاكل مع الخيوط
+    application.run_polling(stop_signals=None)
 
 if __name__ == "__main__":
-    # تشغيل البوت في خيط مستقل لكي يبقى سيرفر الويب هو السيد المسيطر على البورت
-    bot_thread = threading.Thread(target=run_telegram_bot, daemon=True)
-    bot_thread.start()
-
-    # تشغيل سيرفر الويب في الخيط الرئيسي لإرضاء رندر نهائياً
-    run_web_server()
+    main()
