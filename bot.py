@@ -32,7 +32,7 @@ SEASONS_EPISODES = {
 # 📂 ربط الحلقات بالرسائل الصحيحة حسب أرقام رسائل قناتك الجديدة
 EPISODES_MSG_IDS = {
     (1, "sub"): {i: 206 + i - 1 for i in range(1, 56)},
-    (2, "sub"): {i: 302 + i - 1 for i in range(1, 43)},
+    (2, "sub"): {i: 261 + i - 1 for i in range(1, 43)},  # الموسم الثاني يبدأ من 261 ويمتد لـ 42 حلقة
     (3, "sub"): {i: 303 + i - 1 for i in range(1, 23)},
     (4, "sub"): {i: 325 + i - 1 for i in range(1, 31)},
     (5, "sub"): {i: 355 + i - 1 for i in range(1, 36)},
@@ -113,8 +113,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             parts = text.split(" ")
             season_num = int(parts[1])
-            media_type = "sub" if "مترجم" in text or "حلقة" in text and context.user_data.get("media_type") == "sub" else "dub"
-            # تصحيح التقاط نوع العرض بدقة من السياق المخزن
             media_type = context.user_data.get("media_type", "sub")
             
             context.user_data["current_season"] = season_num
@@ -165,7 +163,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("⚠️ يرجى استخدام الأزرار الموجودة أسفل الشاشة فقط.")
 
-async def error_handler(object, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.error("Exception while handling an update:", exc_info=context.error)
 
 def run_web_server():
