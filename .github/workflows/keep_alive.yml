@@ -1,0 +1,12 @@
+name: Keep Render Bot Awake
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+
+jobs:
+  pingbot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render URL
+        run: curl https://valley-botvalley-bot.onrender.com
