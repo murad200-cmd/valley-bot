@@ -10,7 +10,7 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # التوكن الصحيح والكامل للبوت
-TOKEN = "8695639459:AAEdjd-BqUway2ZFFh0kB1jRAgjiDybZjRQ"
+TOKEN = "8695639459:AAGMV897m_bwUSPMogyCd9Z-1LOO9e2NBJI"
 
 # 📌 معرف قناتك
 CHANNEL_ID = -1001234567890  
