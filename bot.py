@@ -1,4 +1,3 @@
-
 import logging
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -13,10 +12,10 @@ logger = logging.getLogger(__name__)
 # التوكن الصحيح والكامل للبوت
 TOKEN = "8695639459:AAEdjd-BqUway2ZFFh0kB1jRAgjiDybZjRQ"
 
-# 📌 معرف قناتك (يجب أن يبدأ بـ -100 وأن يكون البوت مشرفاً فيها)
+# 📌 معرف قناتك
 CHANNEL_ID = -1001234567890  
 
-# أعداد الحلقات الحقيقية لجميع المواسم (الترتيب: مترجم، مدبلج)
+# أعداد الحلقات لجميع المواسم
 SEASONS_EPISODES = {
     1: {"sub": 55, "dub": 86},
     2: {"sub": 42, "dub": 42},
@@ -28,20 +27,15 @@ SEASONS_EPISODES = {
     8: {"sub": 39, "dub": 39},
     9: {"sub": 39, "dub": 39},
     10: {"sub": 39, "dub": 39},
-    11: {"sub": 0, "dub": 0}  # متوقف
+    11: {"sub": 0, "dub": 0}
 }
 
-# 📥 قاموس أرقام رسائل الحلقات داخل قناتك
+# قاموس أرقام رسائل الحلقات
 EPISODES_MSG_IDS = {
-    (1, "sub"): {
-        1: 15,  # مثال: الحلقة 1 مترجمة في الرسالة رقم 15
-    },
-    (1, "dub"): {
-        1: 102, # مثال: الحلقة 1 مدبلجة في الرسالة رقم 102
-    }
+    (1, "sub"): {1: 15},
+    (1, "dub"): {1: 102}
 }
 
-# أمر البدء /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [
@@ -56,7 +50,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
-# معالجة الأزرار
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -68,29 +61,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         keyboard = []
         row = []
-        
         for season in range(1, 12):
             if season == 11:
                 if row:
                     keyboard.append(row)
                     row = []
-                btn_text = f"⚠️ الموسم 11 ({type_name}) - متوقف"
-                keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"season_{media_type}_{season}")])
+                keyboard.append([InlineKeyboardButton(f"⚠️ الموسم 11 ({type_name}) - متوقف", callback_data=f"season_{media_type}_{season}")])
             else:
                 count = SEASONS_EPISODES[season][media_type]
-                btn_text = f"الموسم {season} ({count} حلقة)"
-                row.append(InlineKeyboardButton(btn_text, callback_data=f"season_{media_type}_{season}"))
-                
+                row.append(InlineKeyboardButton(f"الموسم {season} ({count} حلقة)", callback_data=f"season_{media_type}_{season}"))
                 if len(row) == 2:
                     keyboard.append(row)
                     row = []
-        
         if row:
             keyboard.append(row)
-            
         keyboard.append([InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="main_menu")])
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text=f"📂 اختر الموسم المطلوب ({type_name}):", reply_markup=reply_markup)
+        await query.edit_message_text(text=f"📂 اختر الموسم المطلوب ({type_name}):", reply_markup=InlineKeyboardMarkup(keyboard))
 
     elif data.startswith("season_"):
         parts = data.split("_")
@@ -108,19 +94,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         total_episodes = SEASONS_EPISODES[season_num][media_type]
         keyboard = []
         row = []
-        
         for ep in range(1, total_episodes + 1):
             row.append(InlineKeyboardButton(f"ح {ep}", callback_data=f"ep_{media_type}_{season_num}_{ep}"))
             if len(row) == 4:
                 keyboard.append(row)
                 row = []
-                
         if row:
             keyboard.append(row)
-            
         keyboard.append([InlineKeyboardButton("🔙 رجوع للمواسم", callback_data=f"type_{media_type}")])
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text=f"🎬 اختر الحلقة من الموسم {season_num}:", reply_markup=reply_markup)
+        await query.edit_message_text(text=f"🎬 اختر الحلقة من الموسم {season_num}:", reply_markup=InlineKeyboardMarkup(keyboard))
 
     elif data.startswith("ep_"):
         parts = data.split("_")
@@ -129,54 +111,41 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ep_num = int(parts[3])
         
         msg_id = EPISODES_MSG_IDS.get((season_num, media_type), {}).get(ep_num)
-        
         if msg_id:
             try:
-                await context.bot.copy_message(
-                    chat_id=query.message.chat_id,
-                    from_chat_id=CHANNEL_ID,
-                    message_id=msg_id
-                )
+                await context.bot.copy_message(chat_id=query.message.chat_id, from_chat_id=CHANNEL_ID, message_id=msg_id)
             except Exception as e:
                 await query.message.reply_text("⚠️ حدث خطأ أثناء جلب الحلقة، تأكد من أن البوت مشرف في القناة.")
         else:
-            await query.message.reply_text(
-                f"⚠️ عذراً، حلقة الموسم {season_num} - الحلقة {ep_num} لم يتم ربطها بعد."
-            )
+            await query.message.reply_text(f"⚠️ عذراً، حلقة الموسم {season_num} - الحلقة {ep_num} لم يتم ربطها بعد.")
 
     elif data == "main_menu":
-        keyboard = [
-            [
-                InlineKeyboardButton("🎬 النسخة المترجمة", callback_data="type_sub"),
-                InlineKeyboardButton("🎙️ النسخة المدبلجة", callback_data="type_dub")
-            ]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text="🐺 **أهلاً بك مجدداً. اختر النسخة:**", reply_markup=reply_markup, parse_mode="Markdown")
+        keyboard = [[InlineKeyboardButton("🎬 النسخة المترجمة", callback_data="type_sub"), InlineKeyboardButton("🎙️ النسخة المدبلجة", callback_data="type_dub")]]
+        await query.edit_message_text(text="🐺 **أهلاً بك مجدداً. اختر النسخة:**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
-# --- سيرفر ويب وهمي لإبقاء البت مفتوحاً على Render ---
+# --- سيرفر الويب الأساسي لـ Render ---
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Bot is running successfully!")
+        self.wfile.write(b"Bot is alive and running!")
 
 def run_web_server():
     port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(('0.0.0.0', port), SimpleHandler)
     server.serve_forever()
 
-def main():
-    # تشغيل سيرفر الويب في خلفية النظام لترضية رندر
-    server_thread = threading.Thread(target=run_web_server, daemon=True)
-    server_thread.start()
-
-    # تشغيل البوت
+# --- تشغيل البوت في الخلفية ---
+def run_telegram_bot():
     application = Application.builder().token(TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button_handler))
-
-    application.run_polling()
+    application.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
-    main()
+    # تشغيل البوت في خيط مستقل لكي يبقى سيرفر الويب هو السيد المسيطر على البورت
+    bot_thread = threading.Thread(target=run_telegram_bot, daemon=True)
+    bot_thread.start()
+
+    # تشغيل سيرفر الويب في الخيط الرئيسي لإرضاء رندر نهائياً
+    run_web_server()
