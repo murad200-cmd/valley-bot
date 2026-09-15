@@ -11,7 +11,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # التوكن الخاص بك
-TOKEN = "865639459:AAGkcY-95hCsGQTKaN190Fkpv0yAoDt31s"
+TOKEN = "8695639459:AAhCWN4GJEGNYrUMu8zUhV11rbvhGXdUhAo"
 
 # معرف قناتك الأساسية
 CHANNEL_ID = -1003924784582
