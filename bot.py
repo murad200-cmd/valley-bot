@@ -10,7 +10,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# التوكن الصحيح الذي أرسلته
+# التوكن الصحيح والمحدث
 TOKEN = "8695639459:AAHlbqs7dlXUyGw1fweRhuzpQNBeIlHq0eo"
 
 # معرف قناتك العامة
@@ -31,31 +31,49 @@ SEASONS_EPS100DFS = {
     11: {"sub": 0, "dub": 0}
 }
 
-# ربط الملفات برسائل القناة لكل من القسمين (المترجم والمدبلج)
+# ربط الملفات برسائل القناة لكل من القسمين بشكل صحيح لمنع تداخل المفاتيح
 EPISODES_MSG_IDS = {
-    # القسم المترجم
-    1: {"sub": lambda i: 206 - i - 1 for i in range(1, 56)},
-    2: {"sub": lambda i: 261 - i - 1 for i in range(1, 43)},
-    3: {"sub": lambda i: 303 - i - 1 for i in range(1, 23)},
-    4: {"sub": lambda i: 325 - i - 1 for i in range(1, 31)},
-    5: {"sub": lambda i: 356 - i - 1 for i in range(1, 36)},
-    6: {"sub": lambda i: 423 - i - 1 for i in range(1, 34)},
-    7: {"sub": lambda i: 456 - i - 1 for i in range(1, 32)},
-    8: {"sub": lambda i: 487 - i - 1 for i in range(1, 48)},
-    9: {"sub": lambda i: 534 - i - 1 for i in range(1, 35)},
-    10: {"sub": lambda i: 568 - i - 1 for i in range(1, 38)},
-
-    # القسم المدبلج
-    1: {"dub": lambda i: 605 - i - 1 for i in range(1, 87)},
-    2: {"dub": lambda i: 693 - i - 1 for i in range(1, 71)},
-    3: {"dub": lambda i: 761 - i - 1 for i in range(1, 125)},
-    4: {"dub": lambda i: 886 - i - 1 for i in range(1, 63)},
-    5: {"dub": lambda i: 947 - i - 1 for i in range(1, 79)},
-    6: {"dub": lambda i: 1025 - i - 1 for i in range(1, 79)},
-    7: {"dub": lambda i: 1175 - i - 1 for i in range(1, 79)},
-    8: {"dub": lambda i: 1253 - i - 1 for i in range(1, 85)},
-    9: {"dub": lambda i: 1337 - i - 1 for i in range(1, 35)},
-    10: {"dub": lambda i: 137 - i - 1 for i in range(1, 38)}
+    1: {
+        "sub": lambda i: 206 - i - 1 for i in range(1, 56)
+    },
+    2: {
+        "sub": lambda i: 261 - i - 1 for i in range(1, 43),
+        "dub": lambda i: 693 - i - 1 for i in range(1, 71)
+    },
+    3: {
+        "sub": lambda i: 303 - i - 1 for i in range(1, 23),
+        "dub": lambda i: 761 - i - 1 for i in range(1, 125)
+    },
+    4: {
+        "sub": lambda i: 325 - i - 1 for i in range(1, 31),
+        "dub": lambda i: 886 - i - 1 for i in range(1, 63)
+    },
+    5: {
+        "sub": lambda i: 356 - i - 1 for i in range(1, 36),
+        "dub": lambda i: 947 - i - 1 for i in range(1, 79)
+    },
+    6: {
+        "sub": lambda i: 423 - i - 1 for i in range(1, 34),
+        "dub": lambda i: 1025 - i - 1 for i in range(1, 79)
+    },
+    7: {
+        "sub": lambda i: 456 - i - 1 for i in range(1, 32),
+        "dub": lambda i: 1175 - i - 1 for i in range(1, 79)
+    },
+    8: {
+        "sub": lambda i: 487 - i - 1 for i in range(1, 48),
+        "dub": lambda i: 1253 - i - 1 for i in range(1, 85)
+    },
+    9: {
+        "sub": lambda i: 534 - i - 1 for i in range(1, 35),
+        "dub": lambda i: 1337 - i - 1 for i in range(1, 35)
+    },
+    10: {
+        "sub": lambda i: 568 - i - 1 for i in range(1, 38),
+        "dub": lambda i: 137 - i - 1 for i in range(1, 38)
+    },
+    # فصل الموسم الأول مدبلج لعدم تداخل مفتاح الرقم 1
+    "dub_1": lambda i: 605 - i - 1 for i in range(1, 87)
 }
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -157,7 +175,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             media_type = context.user_data.get('media_type', 'sub')
             
-            mapping_func = EPISODES_MSG_IDS.get(season_num, {}).get(media_type)
+            if season_num == 1 and media_type == "dub":
+                mapping_func = EPISODES_MSG_IDS.get("dub_1")
+            else:
+                mapping_func = EPISODES_MSG_IDS.get(season_num, {}).get(media_type)
+
             if mapping_func:
                 msg_id = mapping_func(ep_num)
                 await context.bot.copy_message(
