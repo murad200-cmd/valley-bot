@@ -2,28 +2,26 @@ import logging
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
-import time
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # إعداد السجلات
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# التوكن الصحيح الخاص بك
+# التوكن الخاص بك
 TOKEN = "8695639459:AAHlbqs7dlXUyGw1fweRhuzpQNBeIlHq0eo"
 
-# معرف قناتك العامة
+# 📌 معرف قناتك الخاصة
 CHANNEL_ID = -1003924784582
 
-# مواسم القسم المترجم والمدبلج
-SEASONS_EPS100DFS = {
-    1: {"sub": 55, "dub": 861},
+SEASONS_EPISODES = {
+    1: {"sub": 55, "dub": 86},
     2: {"sub": 42, "dub": 70},
     3: {"sub": 22, "dub": 124},
     4: {"sub": 30, "dub": 62},
     5: {"sub": 35, "dub": 78},
-    6: {"sub": 33, "dub": 78},
+    6: {"sub": 33, "dub": 72},
     7: {"sub": 31, "dub": 78},
     8: {"sub": 47, "dub": 84},
     9: {"sub": 34, "dub": 34},
@@ -31,40 +29,40 @@ SEASONS_EPS100DFS = {
     11: {"sub": 0, "dub": 0}
 }
 
-# ربط الملفات برسائل القناة لكل من القسمين بمعرفات فريدة لمنع التخبط نهائياً
+# 📂 ربط الحلقات بالرسائل الصحيحة لكل من القسمين (المترجم والمدبلج)
 EPISODES_MSG_IDS = {
     # القسم المترجم
-    "sub_1": lambda i: 206 - i - 1,
-    "sub_2": lambda i: 261 - i - 1,
-    "sub_3": lambda i: 303 - i - 1,
-    "sub_4": lambda i: 325 - i - 1,
-    "sub_5": lambda i: 356 - i - 1,
-    "sub_6": lambda i: 423 - i - 1,
-    "sub_7": lambda i: 456 - i - 1,
-    "sub_8": lambda i: 487 - i - 1,
-    "sub_9": lambda i: 534 - i - 1,
-    "sub_10": lambda i: 568 - i - 1,
+    (1, "sub"): {i: 206 + i - 1 for i in range(1, 56)},
+    (2, "sub"): {i: 261 + i - 1 for i in range(1, 43)},
+    (3, "sub"): {i: 303 + i - 1 for i in range(1, 23)},
+    (4, "sub"): {i: 325 + i - 1 for i in range(1, 31)},
+    (5, "sub"): {i: 355 + i - 1 for i in range(1, 36)},
+    (6, "sub"): {i: 423 + i - 1 for i in range(1, 34)},
+    (7, "sub"): {i: 456 + i - 1 for i in range(1, 32)},
+    (8, "sub"): {i: 487 + i - 1 for i in range(1, 48)},
+    (9, "sub"): {i: 534 + i - 1 for i in range(1, 35)},
+    (10, "sub"): {i: 568 + i - 1 for i in range(1, 38)},
 
     # القسم المدبلج
-    "dub_1": lambda i: 605 - i - 1,
-    "dub_2": lambda i: 693 - i - 1,
-    "dub_3": lambda i: 761 - i - 1,
-    "dub_4": lambda i: 886 - i - 1,
-    "dub_5": lambda i: 947 - i - 1,
-    "dub_6": lambda i: 1025 - i - 1,
-    "dub_7": lambda i: 1175 - i - 1,
-    "dub_8": lambda i: 1253 - i - 1,
-    "dub_9": lambda i: 1337 - i - 1,
-    "dub_10": lambda i: 137 - i - 1
+    (1, "dub"): {i: 605 + i - 1 for i in range(1, 87)},
+    (2, "dub"): {i: 691 + i - 1 for i in range(1, 71)},
+    (3, "dub"): {i: 761 + i - 1 for i in range(1, 125)},
+    (4, "dub"): {i: 885 + i - 1 for i in range(1, 63)},
+    (5, "dub"): {i: 947 + i - 1 for i in range(1, 79)},
+    (6, "dub"): {i: 1025 + i - 1 for i in range(1, 73)},
+    (7, "dub"): {i: 1175 + i - 1 for i in range(1, 79)},
+    (8, "dub"): {i: 1253 + i - 1 for i in range(1, 85)},
+    (9, "dub"): {i: 1337 + i - 1 for i in range(1, 35)},
+    (10, "dub"): {i: 1371 + i - 1 for i in range(1, 38)},
 }
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        [KeyboardButton("🎬 المواسم المترجمة"), KeyboardButton("🎙️ المواسم المدبلجة")]
+        [KeyboardButton("🎬 النسخة المترجمة"), KeyboardButton("🎙️ النسخة المدبلجة")]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text(
-        "أهلاً بك في بوت مسلسل وادي الذئاب الرسمي! اختر القسم المفضل لديك من الأزرار بالأسفل:",
+        "🐺 **أهلاً بك في بوت مسلسل وادي الذئاب الرسمي**\n\nاختر النسخة من الأزرار بالأسفل:",
         reply_markup=reply_markup,
         parse_mode="Markdown"
     )
@@ -72,154 +70,127 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
-
+        
     text = update.message.text
     chat_id = update.message.chat_id
 
-    if text == "🎬 المواسم المترجمة":
+    if text == "🎬 النسخة المترجمة" or text == "🔙 المواسم المترجمة":
+        context.user_data["media_type"] = "sub"
         keyboard = []
         row = []
         for season in range(1, 12):
             if season == 11:
-                continue
-            row.append(KeyboardButton(f"الموسم {season} (مترجم)"))
-            if len(row) == 2:
-                keyboard.append(row)
-                row = []
+                if row:
+                    keyboard.append(row)
+                    row = []
+                keyboard.append([KeyboardButton("⚠️ الموسم 11 (مترجم) - متوقف")])
+            else:
+                count = SEASONS_EPISODES[season]["sub"]
+                row.append(KeyboardButton(f"الموسم {season} ({count} حلقة)"))
+                if len(row) == 2:
+                    keyboard.append(row)
+                    row = []
         if row:
             keyboard.append(row)
         keyboard.append([KeyboardButton("🔙 القائمة الرئيسية")])
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-        await update.message.reply_text("اختر الموسم المطلوب من المواسم المترجمة:", reply_markup=reply_markup)
-        return
+        await update.message.reply_text("📂 اختر الموسم المطلوب (مترجم):", reply_markup=reply_markup)
 
-    elif text == "🎙️ المواسم المدبلجة":
+    elif text == "🎙️ النسخة المدبلجة" or text == "🔙 المواسم المدبلجة":
+        context.user_data["media_type"] = "dub"
         keyboard = []
         row = []
-        for season in range(1, 11):
-            row.append(KeyboardButton(f"الموسم {season} (مدبلج)"))
-            if len(row) == 2:
-                keyboard.append(row)
-                row = []
+        for season in range(1, 12):
+            if season == 11:
+                if row:
+                    keyboard.append(row)
+                    row = []
+                keyboard.append([KeyboardButton("⚠️ الموسم 11 (مدبلج) - متوقف")])
+            else:
+                count = SEASONS_EPISODES[season]["dub"]
+                row.append(KeyboardButton(f"الموسم {season} ({count} حلقة)"))
+                if len(row) == 2:
+                    keyboard.append(row)
+                    row = []
         if row:
             keyboard.append(row)
         keyboard.append([KeyboardButton("🔙 القائمة الرئيسية")])
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-        await update.message.reply_text("اختر الموسم المطلوب من المواسم المدبلجة:", reply_markup=reply_markup)
-        return
+        await update.message.reply_text("📂 اختر الموسم المطلوب (مدبلج):", reply_markup=reply_markup)
 
-    elif text == "🔙 القائمة الرئيسية":
-        await start(update, context)
-        return
-
-    # معالجة اختيار المواسم بناءً على النص (مترجم أو مدبلج) لمنع الخلط نهائياً
-    if "الموسم" in text:
+    elif text.startswith("الموسم "):
         try:
-            parts = text.split()
+            parts = text.split(" ")
             season_num = int(parts[1])
+            media_type = context.user_data.get("media_type", "sub")
             
-            # تحديد النوع مباشرة من النص الموجود في الزر (مترجم أو مدبلج)
-            if "مترجم" in text:
-                media_type = "sub"
-            elif "مدبلج" in text:
-                media_type = "dub"
-            else:
-                media_type = "sub" # افتراضي احتياطي
-            
-            # تخزين النوع الحالي بشكل مؤكد في الذاكرة أيضاً للاستخدام في الخطوة التالية
-            context.user_data['media_type'] = media_type
+            context.user_data["current_season"] = season_num
 
-            total_eps = SEASONS_EPS100DFS.get(season_num, {}).get(media_type, 0)
-            if total_eps == 0:
-                await update.message.reply_text("عذراً، هذا الموسم غير متوفر حالياً.")
+            total_episodes = SEASONS_EPISODES[season_num][media_type]
+            if total_episodes == 0:
+                await update.message.reply_text("⚠️ هذا الموسم غير متوفر حالياً.")
                 return
 
             keyboard = []
             row = []
-            for ep in range(1, total_eps + 1):
-                # نمرر نوع الترجمة أو الدبلجة ضمناً في نص زر الحلقة لضمان عدم الضياع
-                tag = "مترجم" if media_type == "sub" else "مدبلج"
-                row.append(KeyboardButton(f"حلقة {ep} (م{season_num}) {tag}"))
-                if len(row) == 3:  # تم تصغير الصف قليلاً ليكون أريح للأزرار الطويلة
+            for ep in range(1, total_episodes + 1):
+                row.append(KeyboardButton(f"حلقة {ep}"))
+                if len(row) == 4:
                     keyboard.append(row)
                     row = []
             if row:
                 keyboard.append(row)
             
-            back_btn = "🎬 المواسم المترجمة" if media_type == "sub" else "🎙️ المواسم المدبلجة"
-            keyboard.append([KeyboardButton(back_btn), KeyboardButton("🔙 القائمة الرئيسية")])
-            
+            back_btn = "🔙 المواسم المترجمة" if media_type == "sub" else "🔙 المواسم المدبلجة"
+            keyboard.append([KeyboardButton(back_btn)])
             reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-            label = "مترجم" if media_type == "sub" else "مدبلج"
-            await update.message.reply_text(f"اختر رقم الحلقة من الموسم {season_num} ({label}):", reply_markup=reply_markup)
+            await update.message.reply_text(f"🎬 اختر الحلقة من الموسم {season_num}:", reply_markup=reply_markup)
         except Exception as e:
-            logger.error(f"Error parsing season: {e}")
-            await update.message.reply_text("حدث خطأ في تحديد الموسم، يرجى المحاولة مرة أخرى.")
-        return
+            logger.error(f"Error in season selection: {e}")
 
-    # معالجة جلب الحلقة بناءً على النص الصريح للزر (مترجم/مدبلج) لضمان الدقة المطلقة
-    if "حلقة" in text:
+    elif text.startswith("حلقة "):
         try:
-            parts = text.split()
-            ep_num = int(parts[1])
-            
-            # استخراج رقم الموسم من الصيغة (م1) مثلاً
-            season_part = parts[2].replace("(", "").replace(")", "")
-            season_num = int(season_part.replace("م", ""))
-            
-            # تحديد النوع مباشرة من النص الواصل من الزر (مترجم أو مدبلج) أو من الذاكرة كاحتياط
-            if "مترجم" in text:
-                media_type = "sub"
-            elif "مدبلج" in text:
-                media_type = "dub"
-            else:
-                media_type = context.user_data.get('media_type', 'sub')
-            
-            key = f"{media_type}_{season_num}"
-            mapping_func = EPISODES_MSG_IDS.get(key)
-            
-            if mapping_func:
-                msg_id = mapping_func(ep_num)
-                await context.bot.copy_message(
-                    chat_id=chat_id,
-                    from_chat_id=CHANNEL_ID,
-                    message_id=msg_id
-                )
-            else:
-                await update.message.reply_text("عذراً، هذه الحلقة غير متوفرة برابط مباشر حالياً.")
-        except Exception as e:
-            logger.error(f"Error fetching episode: {e}")
-            await update.message.reply_text("عذراً، حدث خطأ أثناء إحضار الحلقة.")
-        return
+            ep_num = int(text.replace("حلقة ", ""))
+            season_num = context.user_data.get("current_season", 1)
+            media_type = context.user_data.get("media_type", "sub")
 
-# إعداد خادم الويب الوهمي لإبقاء البوت مستيقظاً على Render
-class SimpleHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Bot is active and running 24/7!")
+            msg_id = EPISODES_MSG_IDS.get((season_num, media_type), {}).get(ep_num)
+            if msg_id:
+                await context.bot.copy_message(chat_id=chat_id, from_chat_id=CHANNEL_ID, message_id=msg_id)
+            else:
+                await update.message.reply_text(f"⚠️ عذراً، حلقة الموسم {season_num} - الحلقة {ep_num} لم يتم ربطها بعد.")
+        except Exception as e:
+            logger.error(f"Error sending episode: {e}")
+
+    elif text == "🔙 القائمة الرئيسية":
+        keyboard = [
+            [KeyboardButton("🎬 النسخة المترجمة"), KeyboardButton("🎙️ النسخة المدبلجة")]
+        ]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        await update.message.reply_text("🐺 **أهلاً بك مجدداً. اختر النسخة:**", reply_markup=reply_markup, parse_mode="Markdown")
+
+    else:
+        await update.message.reply_text("⚠️ يرجى استخدام الأزرار الموجودة أسفل الشاشة فقط.")
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logger.error("Exception while handling an update:", exc_info=context.error)
 
 def run_web_server():
     port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(('0.0.0.0', port), SimpleHandler)
+    server = HTTPServer(('0.0.0.0', port), BaseHTTPRequestHandler)
     server.serve_forever()
 
 def main():
     server_thread = threading.Thread(target=run_web_server, daemon=True)
     server_thread.start()
 
-    while True:
-        try:
-            application = Application.builder().token(TOKEN).build()
+    application = Application.builder().token(TOKEN).build()
+    
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.add_error_handler(error_handler)
 
-            application.add_handler(CommandHandler("start", start))
-            application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.run_polling(drop_pending_updates=True, stop_signals=None)
 
-            logger.info("Starting Telegram bot polling...")
-            application.run_polling(drop_pending_updates=True)
-        except Exception as e:
-            logger.error(f"Bot polling crashed with error: {e}. Restarting in 5 seconds...")
-            time.sleep(5)
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
