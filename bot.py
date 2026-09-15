@@ -10,13 +10,13 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# التوكن الجديد الصحيح
+# التوكن الجديد المحدث
 TOKEN = "8695639459:AAhCWN4GJEGNYrUMu8zUhV11rbvhGXdUhAo"
 
-# معرف قناتك الأساسية
+# معرف قناتك العامة
 CHANNEL_ID = -1003924784582
 
-# مواسم القسم المترجم والمدبلج
+# مواسم القسم المترجم
 SEASONS_EPS100DFS = {
     1: {"sub": 55, "dub": 861},
     2: {"sub": 42, "dub": 70},
@@ -64,7 +64,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text(
-        "أهلاً بك في بوت مسلسل وادي الذئاب الرسمي! اختر القسم المفضل لديك من الأزرار بالأسفل:",
+        "أهلاً بك في بوت معاسك وادي الذئاب الرسمي! اختر القسم المفضل لديك من الأزرار بالأسفل:",
         reply_markup=reply_markup,
         parse_mode="Markdown"
     )
@@ -75,10 +75,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = update.message.text
     chat_id = update.message.chat_id
-    logger.info(f"Received message: {text} from chat_id: {chat_id}")
 
-    # دعم كلا الصيغتين للأزرار (المواسم أو النسخ) لضمان الاستجابة
-    if text in ["🎬 المواسم المترجمة", "🎬 النسخة المترجمة"]:
+    if text == "🎬 المواسم المترجمة":
         context.user_data['media_type'] = "sub"
         keyboard = []
         row = []
@@ -96,7 +94,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("اختر الموسم المطلوب من المواسم المترجمة:", reply_markup=reply_markup)
         return
 
-    elif text in ["🎙️ المواسم المدبلجة", "🎙️ النسخة المدبلجة"]:
+    elif text == "🎙️ المواسم المدبلجة":
         context.user_data['media_type'] = "dub"
         keyboard = []
         row = []
@@ -138,6 +136,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if row:
                 keyboard.append(row)
             
+            # زر العودة للقسم
             back_btn = "🎬 المواسم المترجمة" if media_type == "sub" else "🎙️ المواسم المدبلجة"
             keyboard.append([KeyboardButton(back_btn), KeyboardButton("🔙 القائمة الرئيسية")])
             
@@ -152,16 +151,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # معالجة جلب الحلقة وإرسالها للمستخدم
     if "حلقة" in text:
         try:
+            # مثال النص: حلقة 5 (م1)
             parts = text.split()
             ep_num = int(parts[1])
-            season_part = parts[2].replace("(", "").replace(")", "")
+            season_part = parts[2].replace("(", "").replace(")", "") # م1
             season_num = int(season_part.replace("م", ""))
             
             media_type = context.user_data.get('media_type', 'sub')
             
+            # جلب معرف الرسالة من القائمة
             mapping_func = EPISODES_MSG_IDS.get(season_num, {}).get(media_type)
             if mapping_func:
                 msg_id = mapping_func(ep_num)
+                # إعادة توجيه الرسالة من القناة للمستخدم مباشرة
                 await context.bot.copy_message(
                     chat_id=chat_id,
                     from_chat_id=CHANNEL_ID,
@@ -187,11 +189,11 @@ def run_web_server():
     server.serve_forever()
 
 def main():
-    # تشغيل السيرفر الوهمي في خيط منفصل (Thread) لضمان الاستجابة لطلبات الـ Keep-Alive
+    # تشغيل السيرفر الوهمي في خيط منفصل (Thread)
     server_thread = threading.Thread(target=run_web_server, daemon=True)
     server_thread.start()
 
-    # تشغيل بوت تيليجرام مع حماية لإعادة الاتصال تلقائياً عند أي سقوط أو انقطاع
+    # تشغيل بوت تيليجرام مع حماية لإعادة الاتصال التلقائي عند أي توقف
     while True:
         try:
             application = Application.builder().token(TOKEN).build()
