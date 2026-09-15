@@ -2,6 +2,7 @@ import logging
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
+import time
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -9,13 +10,13 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# الفوّلت: المفتاح الخاص بك
+# التوكن الصحيح الخاص بك
 TOKEN = "8695639459:AAHlbqs7dlXUyGw1fweRhuzpQNBeIlHq0eo"
 
 # معرف قناتك العامة
 CHANNEL_ID = -1003924784582
 
-# مواسم القسم المترجم
+# مواسم القسم المترجم والمدبلج
 SEASONS_EPS100DFS = {
     1: {"sub": 55, "dub": 861},
     2: {"sub": 42, "dub": 70},
@@ -30,40 +31,42 @@ SEASONS_EPS100DFS = {
     11: {"sub": 0, "dub": 0}
 }
 
-# ربط الملفات برسائل القناة لكل من القسمين (المترجم والمدبلج)
+# ربط الملفات برسائل القناة لكل من القسمين بمعرفات فريدة لمنع التخبط نهائياً
 EPISODES_MSG_IDS = {
     # القسم المترجم
-    1: {"sub": lambda i: 206 - i - 1 for i in range(1, 56)},
-    2: {"sub": lambda i: 261 - i - 1 for i in range(1, 43)},
-    3: {"sub": lambda i: 303 - i - 1 for i in range(1, 23)},
-    4: {"sub": lambda i: 325 - i - 1 for i in range(1, 31)},
-    5: {"sub": lambda i: 356 - i - 1 for i in range(1, 36)},
-    6: {"sub": lambda i: 423 - i - 1 for i in range(1, 34)},
-    7: {"sub": lambda i: 456 - i - 1 for i in range(1, 32)},
-    8: {"sub": lambda i: 487 - i - 1 for i in range(1, 48)},
-    9: {"sub": lambda i: 534 - i - 1 for i in range(1, 35)},
-    10: {"sub": lambda i: 568 - i - 1 for i in range(1, 38)},
+    "sub_1": lambda i: 206 - i - 1,
+    "sub_2": lambda i: 261 - i - 1,
+    "sub_3": lambda i: 303 - i - 1,
+    "sub_4": lambda i: 325 - i - 1,
+    "sub_5": lambda i: 356 - i - 1,
+    "sub_6": lambda i: 423 - i - 1,
+    "sub_7": lambda i: 456 - i - 1,
+    "sub_8": lambda i: 487 - i - 1,
+    "sub_9": lambda i: 534 - i - 1,
+    "sub_10": lambda i: 568 - i - 1,
 
     # القسم المدبلج
-    1: {"dub": lambda i: 605 - i - 1 for i in range(1, 87)},
-    2: {"dub": lambda i: 693 - i - 1 for i in range(1, 71)},
-    3: {"dub": lambda i: 761 - i - 1 for i in range(1, 125)},
-    4: {"dub": lambda i: 886 - i - 1 for i in range(1, 63)},
-    5: {"dub": lambda i: 947 - i - 1 for i in range(1, 79)},
-    6: {"dub": lambda i: 1025 - i - 1 for i in range(1, 79)},
-    7: {"dub": lambda i: 1175 - i - 1 for i in range(1, 79)},
-    8: {"dub": lambda i: 1253 - i - 1 for i in range(1, 85)},
-    9: {"dub": lambda i: 1337 - i - 1 for i in range(1, 35)},
-    10: {"dub": lambda i: 137 - i - 1 for i in range(1, 38)}
+    "dub_1": lambda i: 605 - i - 1,
+    "dub_2": lambda i: 693 - i - 1,
+    "dub_3": lambda i: 761 - i - 1,
+    "dub_4": lambda i: 886 - i - 1,
+    "dub_5": lambda i: 947 - i - 1,
+    "dub_6": lambda i: 1025 - i - 1,
+    "dub_7": lambda i: 1175 - i - 1,
+    "dub_8": lambda i: 1253 - i - 1,
+    "dub_9": lambda i: 1337 - i - 1,
+    "dub_10": lambda i: 137 - i - 1
 }
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # إعادة تعيين الحالة عند البدء لمنع التداخل القديم
+    context.user_data.clear()
     keyboard = [
         [KeyboardButton("🎬 المواسم المترجمة"), KeyboardButton("🎙️ المواسم المدبلجة")]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text(
-        "أهلاً بك في بوت معاسك وادي الذئاب الرسمي! اختر القسم المفضل لديك من الأزرار بالأسفل:",
+        "أهلاً بك في بوت مسلسل وادي الذئاب الرسمي! اختر القسم المفضل لديك من الأزرار بالأسفل:",
         reply_markup=reply_markup,
         parse_mode="Markdown"
     )
@@ -135,7 +138,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if row:
                 keyboard.append(row)
             
-            # زر العودة للقسم
             back_btn = "🎬 المواسم المترجمة" if media_type == "sub" else "🎙️ المواسم المدبلجة"
             keyboard.append([KeyboardButton(back_btn), KeyboardButton("🔙 القائمة الرئيسية")])
             
@@ -147,22 +149,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("حدث خطأ في تحديد الموسم، يرجى المحاولة مرة أخرى.")
         return
 
-    # معالجة جلب الحلقة وإرسالها للمستخدم
+    # معالجة جلب الحلقة وإرسالها للمستخدم بدقة تامة دون تخلاط
     if "حلقة" in text:
         try:
-            # مثال النص: حلقة 5 (م1)
             parts = text.split()
             ep_num = int(parts[1])
-            season_part = parts[2].replace("(", "").replace(")", "") # م1
+            season_part = parts[2].replace("(", "").replace(")", "")
             season_num = int(season_part.replace("م", ""))
             
             media_type = context.user_data.get('media_type', 'sub')
             
-            # جلب معرف الرسالة من القائمة
-            mapping_func = EPISODES_MSG_IDS.get(season_num, {}).get(media_type)
+            # بناء المفتاح الفريد بدقة (sub_1 أو dub_1 الخ) لمنع أي تخليط
+            key = f"{media_type}_{season_num}"
+            mapping_func = EPISODES_MSG_IDS.get(key)
+            
             if mapping_func:
                 msg_id = mapping_func(ep_num)
-                # إعادة توجيه الرسالة من القناة للمستخدم مباشرة
                 await context.bot.copy_message(
                     chat_id=chat_id,
                     from_chat_id=CHANNEL_ID,
@@ -188,17 +190,21 @@ def run_web_server():
     server.serve_forever()
 
 def main():
-    # تشغيل السيرفر الوهمي في خيط منفصل (Thread)
     server_thread = threading.Thread(target=run_web_server, daemon=True)
     server_thread.start()
 
-    # تشغيل بوت تيليجرام
-    application = Application.builder().token(TOKEN).build()
+    while True:
+        try:
+            application = Application.builder().token(TOKEN).build()
 
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+            application.add_handler(CommandHandler("start", start))
+            application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    application.run_polling()
+            logger.info("Starting Telegram bot polling...")
+            application.run_polling(drop_pending_updates=True)
+        except Exception as e:
+            logger.error(f"Bot polling crashed with error: {e}. Restarting in 5 seconds...")
+            time.sleep(5)
 
 if __name__ == '__main__':
     main()
