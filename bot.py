@@ -10,7 +10,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# التوكن الخاص بك
+# التوكن الجديد الصحيح
 TOKEN = "8695639459:AAhCWN4GJEGNYrUMu8zUhV11rbvhGXdUhAo"
 
 # معرف قناتك الأساسية
@@ -75,8 +75,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = update.message.text
     chat_id = update.message.chat_id
+    logger.info(f"Received message: {text} from chat_id: {chat_id}")
 
-    if text == "🎬 المواسم المترجمة":
+    # دعم كلا الصيغتين للأزرار (المواسم أو النسخ) لضمان الاستجابة
+    if text in ["🎬 المواسم المترجمة", "🎬 النسخة المترجمة"]:
         context.user_data['media_type'] = "sub"
         keyboard = []
         row = []
@@ -94,7 +96,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("اختر الموسم المطلوب من المواسم المترجمة:", reply_markup=reply_markup)
         return
 
-    elif text == "🎙️ المواسم المدبلجة":
+    elif text in ["🎙️ المواسم المدبلجة", "🎙️ النسخة المدبلجة"]:
         context.user_data['media_type'] = "dub"
         keyboard = []
         row = []
@@ -136,7 +138,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if row:
                 keyboard.append(row)
             
-            # زر العودة للقسم
             back_btn = "🎬 المواسم المترجمة" if media_type == "sub" else "🎙️ المواسم المدبلجة"
             keyboard.append([KeyboardButton(back_btn), KeyboardButton("🔙 القائمة الرئيسية")])
             
