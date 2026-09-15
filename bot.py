@@ -59,8 +59,6 @@ EPISODES_MSG_IDS = {
 }
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # إعادة تعيين الحالة عند البدء لمنع التداخل القديم
-    context.user_data.clear()
     keyboard = [
         [KeyboardButton("🎬 المواسم المترجمة"), KeyboardButton("🎙️ المواسم المدبلجة")]
     ]
@@ -79,7 +77,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.message.chat_id
 
     if text == "🎬 المواسم المترجمة":
-        context.user_data['media_type'] = "sub"
         keyboard = []
         row = []
         for season in range(1, 12):
@@ -97,7 +94,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     elif text == "🎙️ المواسم المدبلجة":
-        context.user_data['media_type'] = "dub"
         keyboard = []
         row = []
         for season in range(1, 11):
@@ -116,13 +112,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await start(update, context)
         return
 
-    # معالجة اختيار المواسم والحلقات
+    # معالجة اختيار المواسم بناءً على النص (مترجم أو مدبلج) لمنع الخلط نهائياً
     if "الموسم" in text:
         try:
             parts = text.split()
             season_num = int(parts[1])
-            media_type = context.user_data.get('media_type', 'sub')
             
+            # تحديد النوع مباشرة من النص الموجود في الزر (مترجم أو مدبلج)
+            if "مترجم" in text:
+                media_type = "sub"
+            elif "مدبلج" in text:
+                media_type = "dub"
+            else:
+                media_type = "sub" # افتراضي احتياطي
+            
+            # تخزين النوع الحالي بشكل مؤكد في الذاكرة أيضاً للاستخدام في الخطوة التالية
+            context.user_data['media_type'] = media_type
+
             total_eps = SEASONS_EPS100DFS.get(season_num, {}).get(media_type, 0)
             if total_eps == 0:
                 await update.message.reply_text("عذراً، هذا الموسم غير متوفر حالياً.")
@@ -131,8 +137,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard = []
             row = []
             for ep in range(1, total_eps + 1):
-                row.append(KeyboardButton(f"حلقة {ep} (م{season_num})"))
-                if len(row) == 5:
+                # نمرر نوع الترجمة أو الدبلجة ضمناً في نص زر الحلقة لضمان عدم الضياع
+                tag = "مترجم" if media_type == "sub" else "مدبلج"
+                row.append(KeyboardButton(f"حلقة {ep} (م{season_num}) {tag}"))
+                if len(row) == 3:  # تم تصغير الصف قليلاً ليكون أريح للأزرار الطويلة
                     keyboard.append(row)
                     row = []
             if row:
@@ -149,17 +157,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("حدث خطأ في تحديد الموسم، يرجى المحاولة مرة أخرى.")
         return
 
-    # معالجة جلب الحلقة وإرسالها للمستخدم بدقة تامة دون تخلاط
+    # معالجة جلب الحلقة بناءً على النص الصريح للزر (مترجم/مدبلج) لضمان الدقة المطلقة
     if "حلقة" in text:
         try:
             parts = text.split()
             ep_num = int(parts[1])
+            
+            # استخراج رقم الموسم من الصيغة (م1) مثلاً
             season_part = parts[2].replace("(", "").replace(")", "")
             season_num = int(season_part.replace("م", ""))
             
-            media_type = context.user_data.get('media_type', 'sub')
+            # تحديد النوع مباشرة من النص الواصل من الزر (مترجم أو مدبلج) أو من الذاكرة كاحتياط
+            if "مترجم" in text:
+                media_type = "sub"
+            elif "مدبلج" in text:
+                media_type = "dub"
+            else:
+                media_type = context.user_data.get('media_type', 'sub')
             
-            # بناء المفتاح الفريد بدقة (sub_1 أو dub_1 الخ) لمنع أي تخليط
             key = f"{media_type}_{season_num}"
             mapping_func = EPISODES_MSG_IDS.get(key)
             
