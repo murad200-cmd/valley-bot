@@ -31,49 +31,48 @@ SEASONS_EPS100DFS = {
     11: {"sub": 0, "dub": 0}
 }
 
-# ربط الملفات برسائل القناة لكل من القسمين بشكل صحيح لمنع تداخل المفاتيح
+# ربط الملفات برسائل القناة لكل من القسمين بشكل صحيح وسليم برمجياً
 EPISODES_MSG_IDS = {
     1: {
-        "sub": lambda i: 206 - i - 1 for i in range(1, 56)
+        "sub": lambda i: 206 - i - 1,
+        "dub": lambda i: 605 - i - 1
     },
     2: {
-        "sub": lambda i: 261 - i - 1 for i in range(1, 43),
-        "dub": lambda i: 693 - i - 1 for i in range(1, 71)
+        "sub": lambda i: 261 - i - 1,
+        "dub": lambda i: 693 - i - 1
     },
     3: {
-        "sub": lambda i: 303 - i - 1 for i in range(1, 23),
-        "dub": lambda i: 761 - i - 1 for i in range(1, 125)
+        "sub": lambda i: 303 - i - 1,
+        "dub": lambda i: 761 - i - 1
     },
     4: {
-        "sub": lambda i: 325 - i - 1 for i in range(1, 31),
-        "dub": lambda i: 886 - i - 1 for i in range(1, 63)
+        "sub": lambda i: 325 - i - 1,
+        "dub": lambda i: 886 - i - 1
     },
     5: {
-        "sub": lambda i: 356 - i - 1 for i in range(1, 36),
-        "dub": lambda i: 947 - i - 1 for i in range(1, 79)
+        "sub": lambda i: 356 - i - 1,
+        "dub": lambda i: 947 - i - 1
     },
     6: {
-        "sub": lambda i: 423 - i - 1 for i in range(1, 34),
-        "dub": lambda i: 1025 - i - 1 for i in range(1, 79)
+        "sub": lambda i: 423 - i - 1,
+        "dub": lambda i: 1025 - i - 1
     },
     7: {
-        "sub": lambda i: 456 - i - 1 for i in range(1, 32),
-        "dub": lambda i: 1175 - i - 1 for i in range(1, 79)
+        "sub": lambda i: 456 - i - 1,
+        "dub": lambda i: 1175 - i - 1
     },
     8: {
-        "sub": lambda i: 487 - i - 1 for i in range(1, 48),
-        "dub": lambda i: 1253 - i - 1 for i in range(1, 85)
+        "sub": lambda i: 487 - i - 1,
+        "dub": lambda i: 1253 - i - 1
     },
     9: {
-        "sub": lambda i: 534 - i - 1 for i in range(1, 35),
-        "dub": lambda i: 1337 - i - 1 for i in range(1, 35)
+        "sub": lambda i: 534 - i - 1,
+        "dub": lambda i: 1337 - i - 1
     },
     10: {
-        "sub": lambda i: 568 - i - 1 for i in range(1, 38),
-        "dub": lambda i: 137 - i - 1 for i in range(1, 38)
-    },
-    # فصل الموسم الأول مدبلج لعدم تداخل مفتاح الرقم 1
-    "dub_1": lambda i: 605 - i - 1 for i in range(1, 87)
+        "sub": lambda i: 568 - i - 1,
+        "dub": lambda i: 137 - i - 1
+    }
 }
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -175,11 +174,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             media_type = context.user_data.get('media_type', 'sub')
             
-            if season_num == 1 and media_type == "dub":
-                mapping_func = EPISODES_MSG_IDS.get("dub_1")
-            else:
-                mapping_func = EPISODES_MSG_IDS.get(season_num, {}).get(media_type)
-
+            mapping_func = EPISODES_MSG_IDS.get(season_num, {}).get(media_type)
             if mapping_func:
                 msg_id = mapping_func(ep_num)
                 await context.bot.copy_message(
