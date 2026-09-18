@@ -212,17 +212,15 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             try:
                 await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=auto_ban_report, parse_mode="Markdown")
-                await context.bot.copy_message(chat_id=ADMIN_CHANNEL_ID, from_chat_id=chat_id, message_id=msg_id_to_forward)
+                await context.bot.forward_message(chat_id=ADMIN_CHANNEL_ID, from_chat_id=chat_id, message_id=msg_id_to_forward)
             except:
                 pass
             return
 
-        # تعديل عرض معلومات المستخدم مع رسالته الأصلية تماماً كما طلبته
         info_header = (
             f"⚠️ **محاولة كتابة أو إرسال خاطئة - بانتظار قرارك**\n"
             f"👤 الاسم: {full_name} | المعرف: {username}\n"
-            f"🆔 الأيدي: `{user.id}`\n"
-            f"📝 **ما أرسله المستخدم أسفل هذه الرسالة:**"
+            f"🆔 الأيدي: `{user.id}`"
         )
         
         inline_kb = InlineKeyboardMarkup([
@@ -234,7 +232,7 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         try:
             await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=info_header, parse_mode="Markdown")
-            await context.bot.copy_message(chat_id=ADMIN_CHANNEL_ID, from_chat_id=chat_id, message_id=msg_id_to_forward)
+            await context.bot.forward_message(chat_id=ADMIN_CHANNEL_ID, from_chat_id=chat_id, message_id=msg_id_to_forward)
             await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text="اختر الإجراء المناسب للمستخدم:", reply_markup=inline_kb)
         except Exception as e:
             logger.error(f"Error forwarding user message: {e}")
