@@ -58,7 +58,6 @@ EPISODES_MSG_IDS = {
     (10, "dub"): {i: 1371 + i - 1 for i in range(1, 38)},
 }
 
-# الترتيب الأصلي المفضّل لأزرار القائمة الرئيسية
 def get_main_keyboard():
     return ReplyKeyboardMarkup([
         [KeyboardButton("🎬 النسخة المترجمة"), KeyboardButton("🎙️ النسخة المدبلجة")],
@@ -93,7 +92,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     daily_visits.add(user.id)
 
-    # إذا كان المستخدم جديد كلياً، قم بإرسال إشعار فوري لقناة الإدارة مع معلوماته
     if is_new_user:
         username = f"@{user.username}" if user.username else "لا يوجد معرف"
         full_name = f"{user.first_name}"
@@ -184,7 +182,7 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except:
                 pass
     else:
-        is_link = "http://" in text or "https://" in text or "t.me/" in text or "www." in text
+        is_link = "http://" in text or "https://" in text or "t.me://" in text or "t.me/" in text or "www." in text
         current_time = time.time()
         
         if user_id not in user_spam_tracker:
@@ -219,9 +217,12 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
+        # تعديل عرض معلومات المستخدم مع رسالته الأصلية تماماً كما طلبته
         info_header = (
-            f"⚠️ **محاولة كتابة خاطئة - بانتظار قرارك**\n"
-            f"👤 {full_name} ({username}) | الأيدي: `{user.id}`"
+            f"⚠️ **محاولة كتابة أو إرسال خاطئة - بانتظار قرارك**\n"
+            f"👤 الاسم: {full_name} | المعرف: {username}\n"
+            f"🆔 الأيدي: `{user.id}`\n"
+            f"📝 **ما أرسله المستخدم أسفل هذه الرسالة:**"
         )
         
         inline_kb = InlineKeyboardMarkup([
@@ -234,9 +235,9 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=info_header, parse_mode="Markdown")
             await context.bot.copy_message(chat_id=ADMIN_CHANNEL_ID, from_chat_id=chat_id, message_id=msg_id_to_forward)
-            await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text="اختر الإجراء للمستخدم:", reply_markup=inline_kb)
-        except:
-            pass
+            await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text="اختر الإجراء المناسب للمستخدم:", reply_markup=inline_kb)
+        except Exception as e:
+            logger.error(f"Error forwarding user message: {e}")
 
         warning_msg = await update.message.reply_text("⚠️ **الكتابة وإرسال الملفات غير مسموحة هنا، استخدم الأزرار.**")
         await asyncio.sleep(3)
