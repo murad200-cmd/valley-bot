@@ -1,12 +1,13 @@
 import logging
 import os
-from http.server import HTTPServer, BaseHTTPRequestHandler
-import threading
 import time
 import asyncio
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 
+# إعداد التسجيل للأخطاء فقط لتوفير الموارد
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
@@ -71,7 +72,7 @@ async def send_daily_report(context):
         f"👥 الزوار الجدد (اليوم): **{len(daily_visits)}**\n"
         f"🌐 **إجمالي الزوار منذ التأسيس:** **{len(unique_users)}**\n"
         f"⚠️ الأخطاء المسجلة: **{daily_errors_count}**\n"
-        f"🟢 الحالة: **يعمل بكفاءة تامة على Render**"
+        f"🟢 الحالة: **يعمل بكفاءة مع خادم الويب للإيقاظ**"
     )
     try:
         await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=report_msg, parse_mode="Markdown")
@@ -118,8 +119,9 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user.id in banned_users:
         return
 
-    text = update.message.text if update.message.text else (update.message.caption or "")
-    chat_id = update.effective_chat.id
+    msg = update.message
+    text = msg.text if msg.text else (msg.caption or "")
+    chat_id = msg.chat.id
     user_id = user.id
 
     if text in ["🎬 النسخة المترجمة", "🎙️ النسخة المدبلجة", "📺 آخر حلقة شاهدتها", "🔙 القائمة الرئيسية"] or \
@@ -131,35 +133,17 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if text == "🎬 النسخة المترجمة":
             context.user_data["media_type"] = "sub"
-            # ترتيب الأجزاء في صفوف من زرين (أعمدة وصفوف منظمة)
-            keyboard = []
-            row = []
-            for s in range(1, 11):
-                row.append(KeyboardButton(f"مترجم - الجزء {s} ({SEASONS_EPISODES[s]['sub']} ح)"))
-                if len(row) == 2:
-                    keyboard.append(row)
-                    row = []
-            if row:
-                keyboard.append(row)
+            keyboard = [[KeyboardButton(f"مترجم - الجزء {s} ({SEASONS_EPISODES[s]['sub']} ح)")] for s in range(1, 11)]
             keyboard.append([KeyboardButton("⚠️ الجزء 11 (مترجم) - متوقف")])
             keyboard.append([KeyboardButton("🔙 القائمة الرئيسية")])
-            await update.message.reply_text("📂 اختر الجزء المطلوب:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
+            await msg.reply_text("📂 اختر الجزء المطلوب:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
 
         elif text == "🎙️ النسخة المدبلجة":
             context.user_data["media_type"] = "dub"
-            # ترتيب الأجزاء المدبلجة في صفوف من زرين (أعمدة وصفوف منظمة)
-            keyboard = []
-            row = []
-            for s in range(1, 11):
-                row.append(KeyboardButton(f"مدبلج - الجزء {s} ({SEASONS_EPISODES[s]['dub']} ح)"))
-                if len(row) == 2:
-                    keyboard.append(row)
-                    row = []
-            if row:
-                keyboard.append(row)
+            keyboard = [[KeyboardButton(f"مدبلج - الجزء {s} ({SEASONS_EPISODES[s]['dub']} ح)")] for s in range(1, 11)]
             keyboard.append([KeyboardButton("⚠️ الجزء 11 (مدبلج) - متوقف")])
             keyboard.append([KeyboardButton("🔙 القائمة الرئيسية")])
-            await update.message.reply_text("📂 اختر الجزء المطلوب:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
+            await msg.reply_text("📂 اختر الجزء المطلوب:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
 
         elif text == "📺 آخر حلقة شاهدتها":
             last_ep_info = user_last_watched.get(user_id)
@@ -168,10 +152,10 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if msg_id:
                     await context.bot.copy_message(chat_id=chat_id, from_chat_id=CHANNEL_ID, message_id=msg_id)
             else:
-                await update.message.reply_text("⚠️ لم تقم بمشاهدة أي حلقة حتى الآن.", reply_markup=get_main_keyboard())
+                await msg.reply_text("⚠️ لم تقم بمشاهدة أي حلقة حتى الآن.", reply_markup=get_main_keyboard())
 
         elif text == "🔙 القائمة الرئيسية":
-            await update.message.reply_text("🐺 القائمة الرئيسية:", reply_markup=get_main_keyboard())
+            await msg.reply_text("🐺 القائمة الرئيسية:", reply_markup=get_main_keyboard())
 
         elif "الجزء " in text:
             try:
@@ -182,19 +166,9 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 context.user_data["media_type"] = media_type
                 total = SEASONS_EPISODES[season_num][media_type]
                 
-                # ترتيب أزرار الحلقات في شبكة منتظمة (5 أزرار في كل صف لتبدو مرتبة بشكل جميل كأعمدة وصفوف)
-                keyboard = []
-                row = []
-                for ep in range(1, total + 1):
-                    row.append(KeyboardButton(f"حلقة {ep}"))
-                    if len(row) == 5:
-                        keyboard.append(row)
-                        row = []
-                if row:
-                    keyboard.append(row)
-                
+                keyboard = [[KeyboardButton(f"حلقة {ep}") for ep in range(1, total + 1)]]
                 keyboard.append([KeyboardButton("🔙 القائمة الرئيسية")])
-                await update.message.reply_text(f"🎬 اختر رقم الحلقة:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
+                await msg.reply_text(f"🎬 اختر رقم الحلقة:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
             except:
                 pass
 
@@ -221,10 +195,11 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_spam_tracker[user_id]["last_time"] = current_time
 
         spam_count = user_spam_tracker[user_id]["count"]
-        msg_id_to_forward = update.message.message_id
+        msg_id_to_forward = msg.message_id
 
+        # حذف الرسالة المخالفة من محادثة المستخدم فوراً
         try:
-            await update.message.delete()
+            await msg.delete()
         except:
             pass
 
@@ -234,8 +209,10 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if is_link or spam_count > 4:
             banned_users.add(user_id)
             auto_ban_report = (
-                f"🚨 **حظر تلقائي فوري!**\n"
-                f"👤 الاسم: {full_name} | المعرف: {username} | الأيدي: `{user.id}`\n"
+                f"🚨 **حظر تلقائي فوري للمستخدم!**\n\n"
+                f"👤 الاسم: {full_name}\n"
+                f"🔗 المعرف: {username}\n"
+                f"🆔 الأيدي: `{user.id}`\n"
                 f"📌 السبب: {'رابط مريب' if is_link else 'إغراق (Spam)'}"
             )
             try:
@@ -245,9 +222,11 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
+        # 1. إرسال تقرير معلومات المستخدم الكامل أولاً
         info_header = (
-            f"⚠️ **محاولة كتابة أو إرسال خاطئة - بانتظار قرارك**\n"
-            f"👤 الاسم: {full_name} | المعرف: {username}\n"
+            f"⚠️ **محاولة إرسال مخالفة - بانتظار قرارك**\n\n"
+            f"👤 الاسم: {full_name}\n"
+            f"🔗 المعرف: {username}\n"
             f"🆔 الأيدي: `{user.id}`"
         )
         
@@ -260,12 +239,14 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         try:
             await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=info_header, parse_mode="Markdown")
+            # 2. تحويل الملف أو الصورة أو الفيديو أو النص الأصلي لقناة الإدارة
             await context.bot.forward_message(chat_id=ADMIN_CHANNEL_ID, from_chat_id=chat_id, message_id=msg_id_to_forward)
+            # 3. إرسال أزرار التحكم تحتها
             await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text="اختر الإجراء المناسب للمستخدم:", reply_markup=inline_kb)
         except Exception as e:
-            logger.error(f"Error forwarding user message: {e}")
+            logger.error(f"Error handling unauthorized message: {e}")
 
-        warning_msg = await update.message.reply_text("⚠️ **الكتابة وإرسال الملفات غير مسموحة هنا، استخدم الأزرار.**")
+        warning_msg = await msg.reply_text("⚠️ **الكتابة وإرسال الملفات غير مسموحة هنا، استخدم الأزرار.**")
         await asyncio.sleep(3)
         try:
             await warning_msg.delete()
@@ -276,88 +257,50 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
     query = update.callback_query
     await query.answer()
     data = query.data
-    parts = data.split("_")
-    action = parts[0]
-    target_user_id = int(parts[1])
+    action, target_user_id = data.split("_")
+    target_user_id = int(target_user_id)
 
     if action == "ban":
         banned_users.add(target_user_id)
-        new_kb = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("📌 الاستمرار بالحظر", callback_data=f"keepban_{target_user_id}"),
-                InlineKeyboardButton("🔓 إزالة الحظر", callback_data=f"unban_{target_user_id}")
-            ]
-        ])
         try:
-            await query.edit_message_text(
-                text=f"🛑 **تم حظر المستخدم (ID: `{target_user_id}`) بنجاح.**\nاختر الإجراء التالي:", 
-                parse_mode="Markdown", 
-                reply_markup=new_kb
-            )
+            await query.edit_message_text(text=f"🛑 **تم حظر المستخدم (ID: `{target_user_id}`) بنجاح.**", parse_mode="Markdown")
         except:
             pass
-
     elif action == "pass":
         try:
-            await query.edit_message_text(
-                text=f"✅ **تم السماح للمستخدم (ID: `{target_user_id}`) بمتابعة النشاط.**", 
-                parse_mode="Markdown"
-            )
-        except:
-            pass
-
-    elif action == "keepban":
-        try:
-            await query.edit_message_text(
-                text=f"📌 **تم تأكيد الاستمرار بحظر المستخدم (ID: `{target_user_id}`).**", 
-                parse_mode="Markdown"
-            )
-        except:
-            pass
-
-    elif action == "unban":
-        if target_user_id in banned_users:
-            banned_users.remove(target_user_id)
-        try:
-            await query.edit_message_text(
-                text=f"🔓 **تم إزالة الحظر عن المستخدم (ID: `{target_user_id}`) بنجاح.**", 
-                parse_mode="Markdown"
-            )
+            await query.edit_message_text(text=f"✅ **تم السماح للمستخدم (ID: `{target_user_id}`) بمتابعة النشاط.**", parse_mode="Markdown")
         except:
             pass
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     global daily_errors_count
     daily_errors_count += 1
-    try:
-        error_msg = f"⚠️ **خطأ تقني مؤقت في البوت:**\n`{context.error}`"
-        await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=error_msg, parse_mode="Markdown")
-    except:
-        pass
 
-class SafeHTTPHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Bot is active and running smoothly via Telegram!")
-    
-    def log_message(self, format, *args):
-        return 
-
+# خادم الويب البسيط لاستقبال طلبات الإيقاظ الخارجية (Keep-alive)
 def run_web_server():
+    class SimpleHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"Bot is active and running!")
+        def log_message(self, format, *args):
+            pass # لمنع طباعة السجلات الوهمية وتوفير الذاكرة
+
     port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(('0.0.0.0', port), SafeHTTPHandler)
+    server = HTTPServer(('0.0.0.0', port), SimpleHandler)
     server.serve_forever()
 
 def main():
+    # تشغيل خادم الويب في خلفية هادئة ليتسق مع خدمة الإيقاظ
     threading.Thread(target=run_web_server, daemon=True).start()
+
     application = Application.builder().token(TOKEN).build()
     
     if application.job_queue:
         application.job_queue.run_repeating(send_daily_report, interval=86400, first=60)
 
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(admin_callback_handler, pattern="^(ban|pass|keepban|unban)_"))
+    application.add_handler(CallbackQueryHandler(admin_callback_handler, pattern="^(ban|pass)_"))
     application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_messages))
     application.add_error_handler(error_handler)
 
