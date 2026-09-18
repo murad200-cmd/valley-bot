@@ -2,7 +2,6 @@ import logging
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
-import asyncio
 import time
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
@@ -14,7 +13,6 @@ TOKEN = "8695639459:AAHlbqs7dlXUyGw1fweRhuzpQNBeIlHq0eo"
 CHANNEL_ID = -1003924784582
 ADMIN_CHANNEL_ID = -1003956613480 
 
-# إجمالي الزوار التاريخي منذ تأسيس البوت
 unique_users = set()
 banned_users = set()
 daily_visits = set()
@@ -65,40 +63,18 @@ def get_main_keyboard():
         [KeyboardButton("📺 آخر حلقة شاهدتها")]
     ], resize_keyboard=True)
 
-async def send_daily_report_loop(bot):
-    await asyncio.sleep(60)
-    while True:
-        global daily_visits, daily_errors_count
-        report_msg = (
-            f"📊 **التقرير اليومي والإحصائيات الشاملة**\n\n"
-            f"👥 الزوار الجدد (اليوم): **{len(daily_visits)}**\n"
-            f"🌐 **إجمالي الزوار منذ التأسيس:** **{len(unique_users)}**\n"
-            f"⚠️ الأخطاء المسجلة: **{daily_errors_count}**\n"
-            f"🟢 الحالة: **يعمل بسلاسة تامة على سحابة تيليجرام**"
-        )
-        try:
-            await bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=report_msg, parse_mode="Markdown")
-        except:
-            pass
-        daily_visits.clear() # يتم تصفير الزوار اليوميين فقط، بينما يظل (unique_users) يحسب المجموع للأبد
-        daily_errors_count = 0
-        await asyncio.sleep(86400) # يتم إرسال التقرير تلقائياً كل 24 ساعة
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if user.id in banned_users:
         return
         
-    # تسجيل الزائر إذا كان جديداً لأول مرة منذ تأسيس البوت
     if user.id not in unique_users:
         unique_users.add(user.id)
-        
-    # تسجيل الزائر في إحصائية اليوم الحالي
     daily_visits.add(user.id)
 
     await update.message.reply_text(
         "🐺 **أهلاً بك في بوت مسلسل وادي الذئاب الرسمي**\n\nاختر من الأزرار في الأسفل:",
-        reply_markup=get_main_keyboard(),
+        reply_markup=get_main_keyword(),
         parse_mode="Markdown"
     )
 
@@ -171,7 +147,7 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except:
                 pass
     else:
-        is_link = "http://" in text or "https://" in text or "t.me://" in text or "www." in text or "t.me/" in text
+        is_link = "http://" in text or "https://" in text or "t.me/" in text or "www." in text
         current_time = time.time()
         
         if user_id not in user_spam_tracker:
@@ -226,6 +202,7 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
         warning_msg = await update.message.reply_text("⚠️ **الكتابة وإرسال الملفات غير مسموحة هنا، استخدم الأزرار.**")
+        import asyncio
         await asyncio.sleep(3)
         try:
             await warning_msg.delete()
@@ -242,12 +219,12 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
     if action == "ban":
         banned_users.add(target_user_id)
         try:
-            await query.edit_message_text(text=f"🛑 **تم حظر المستخدم (ID: `{target_user_id}`) بنجاح.**", parse_mode="Markdown")
+            await query.edit_message_text(text=f"🛑 **تم حظر المستخدم (ID: `{target_user_id}`) بنجاح.**", parse_Mode="Markdown")
         except:
             pass
     elif action == "pass":
         try:
-            await query.edit_message_text(text=f"✅ **تم السماح للمستخدم (ID: `{target_user_id}`) بمتابعة النشاط.**", parse_Mode="Markdown")
+            await query.edit_message_text(text=f"✅ **تم السماح للمستخدم (ID: `{target_user_id}`) بمتابعة النشاط.**", parse_mode="Markdown")
         except:
             pass
 
@@ -264,11 +241,6 @@ def main():
     threading.Thread(target=run_web_server, daemon=True).start()
     application = Application.builder().token(TOKEN).build()
     
-    # تشغيل مهمة إرسال التقارير اليومية في الخلفية
-    job_queue = application.job_queue
-    # أو استخدام حلقة الانتظار البسيطة الآمنة:
-    asyncio.get_event_loop().create_task(send_daily_report_loop(application.bot))
-
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(admin_callback_handler, pattern="^(ban|pass)_"))
     application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_messages))
