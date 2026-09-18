@@ -74,7 +74,7 @@ def get_main_keyboard():
 
 # 📌 دالة إرسال التقرير التلقائي عبر حلقة بايثون الخلفية
 async def send_daily_report_loop(bot):
-    await asyncio.sleep(60)  # الانتظار دقيقة بعد تشغيل البوت لإرسال أول تقرير تجريبي
+    await asyncio.sleep(60)
     while True:
         global daily_visits, daily_errors_count
         new_users_count = len(daily_visits)
@@ -84,7 +84,7 @@ async def send_daily_report_loop(bot):
             f"📊 **التقرير اليومي لأداء البوت (كل 24 ساعة)**\n\n"
             f"👥 عدد الزوار الجدد اليوم: **{new_users_count}**\n"
             f"📈 إجمالي المستخدمين الكلي: **{total_users_count}**\n"
-            f"⚠️ عدد الأخطاء المرصودة: **{daily_errors_count}**\n"
+            f"⚠️ عدد الأخطاء البرمجية المرصودة: **{daily_errors_count}**\n"
             f"🟢 حالة السيرفر: **يعمل بشكل مستقر وسليم**"
         )
         
@@ -96,7 +96,6 @@ async def send_daily_report_loop(bot):
         daily_visits.clear()
         daily_errors_count = 0
         
-        # الانتظار 24 ساعة (86400 ثانية) قبل التقرير القادم
         await asyncio.sleep(86400)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -139,6 +138,7 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
+    user = update.effective_user
 
     if text == "🎬 النسخة المترجمة":
         context.user_data["media_type"] = "sub"
@@ -274,10 +274,27 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Error sending episode: {e}")
 
     else:
+        # 📌 إذا كتب المستخدم نصاً خارج الأزرار، نحذفه ونرسل تقريراً فورياً لقناة الإدارة مع تفاصيله
         try:
             await update.message.delete()
         except Exception:
             pass
+        
+        username = f"@{user.username}" if user.username else "لا يوجد معرف"
+        full_name = f"{user.first_name} {user.last_name or ''}".strip()
+        
+        unknown_msg_report = (
+            f"⚠️ **محاولة إرسال نص خاطئ في البوت!**\n\n"
+            f"👤 الاسم: {full_name}\n"
+            f"🔗 المعرف: {username}\n"
+            f"🆔 الأيدي: `{user.id}`\n"
+            f"📝 النص المرسل: `{text}`"
+        )
+        
+        try:
+            await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=unknown_msg_report, parse_mode="Markdown")
+        except Exception as e:
+            logger.error(f"Failed to send unknown text report: {e}")
         
         warning_msg = await update.message.reply_text(
             "⚠️ **عذراً، الكتابة النصية غير مسموحة هنا!**\nالرجاء استخدام الأزرار في الأسفل للتنقل.",
@@ -309,7 +326,6 @@ def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_messages))
     application.add_error_handler(error_handler)
 
-    # تشغيل حلقة التقرير اليومي بالتوازي مع البوت بأمان تام
     async def post_init(app: Application):
         asyncio.create_task(send_daily_report_loop(app.bot))
 
