@@ -131,14 +131,32 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if text == "🎬 النسخة المترجمة":
             context.user_data["media_type"] = "sub"
-            keyboard = [[KeyboardButton(f"مترجم - الجزء {s} ({SEASONS_EPISODES[s]['sub']} ح)")] for s in range(1, 11)]
+            # ترتيب الأجزاء في صفوف من زرين (أعمدة وصفوف منظمة)
+            keyboard = []
+            row = []
+            for s in range(1, 11):
+                row.append(KeyboardButton(f"مترجم - الجزء {s} ({SEASONS_EPISODES[s]['sub']} ح)"))
+                if len(row) == 2:
+                    keyboard.append(row)
+                    row = []
+            if row:
+                keyboard.append(row)
             keyboard.append([KeyboardButton("⚠️ الجزء 11 (مترجم) - متوقف")])
             keyboard.append([KeyboardButton("🔙 القائمة الرئيسية")])
             await update.message.reply_text("📂 اختر الجزء المطلوب:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
 
         elif text == "🎙️ النسخة المدبلجة":
             context.user_data["media_type"] = "dub"
-            keyboard = [[KeyboardButton(f"مدبلج - الجزء {s} ({SEASONS_EPISODES[s]['dub']} ح)")] for s in range(1, 11)]
+            # ترتيب الأجزاء المدبلجة في صفوف من زرين (أعمدة وصفوف منظمة)
+            keyboard = []
+            row = []
+            for s in range(1, 11):
+                row.append(KeyboardButton(f"مدبلج - الجزء {s} ({SEASONS_EPISODES[s]['dub']} ح)"))
+                if len(row) == 2:
+                    keyboard.append(row)
+                    row = []
+            if row:
+                keyboard.append(row)
             keyboard.append([KeyboardButton("⚠️ الجزء 11 (مدبلج) - متوقف")])
             keyboard.append([KeyboardButton("🔙 القائمة الرئيسية")])
             await update.message.reply_text("📂 اختر الجزء المطلوب:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
@@ -164,7 +182,17 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 context.user_data["media_type"] = media_type
                 total = SEASONS_EPISODES[season_num][media_type]
                 
-                keyboard = [[KeyboardButton(f"حلقة {ep}") for ep in range(1, total + 1)]]
+                # ترتيب أزرار الحلقات في شبكة منتظمة (5 أزرار في كل صف لتبدو مرتبة بشكل جميل كأعمدة وصفوف)
+                keyboard = []
+                row = []
+                for ep in range(1, total + 1):
+                    row.append(KeyboardButton(f"حلقة {ep}"))
+                    if len(row) == 5:
+                        keyboard.append(row)
+                        row = []
+                if row:
+                    keyboard.append(row)
+                
                 keyboard.append([KeyboardButton("🔙 القائمة الرئيسية")])
                 await update.message.reply_text(f"🎬 اختر رقم الحلقة:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
             except:
