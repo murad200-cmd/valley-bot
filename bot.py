@@ -182,15 +182,45 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except:
                 pass
     else:
+        is_link = "http://" in text or "https://" in text or "t.me://" in text or "t.me/" in text or "www." in text
+        current_time = time.time()
+        
+        if user_id not in user_spam_tracker:
+            user_spam_tracker[user_id] = {"count": 1, "last_time": current_time}
+        else:
+            if current_time - user_spam_tracker[user_id]["last_time"] < 10:
+                user_spam_tracker[user_id]["count"] += 1
+            user_spam_tracker[user_id]["last_time"] = current_time
+
+        spam_count = user_spam_tracker[user_id]["count"]
         msg_id_to_forward = update.message.message_id
+
+        try:
+            await update.message.delete()
+        except:
+            pass
+
         username = f"@{user.username}" if user.username else "لا يوجد معرف"
         full_name = f"{user.first_name}"
+
+        if is_link or spam_count > 4:
+            banned_users.add(user_id)
+            auto_ban_report = (
+                f"🚨 **حظر تلقائي فوري!**\n"
+                f"👤 الاسم: {full_name} | المعرف: {username} | الأيدي: `{user.id}`\n"
+                f"📌 السبب: {'رابط مريب' if is_link else 'إغراق (Spam)'}"
+            )
+            try:
+                await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=auto_ban_report, parse_mode="Markdown")
+                await context.bot.forward_message(chat_id=ADMIN_CHANNEL_ID, from_chat_id=chat_id, message_id=msg_id_to_forward)
+            except:
+                pass
+            return
 
         info_header = (
             f"⚠️ **محاولة كتابة أو إرسال خاطئة - بانتظار قرارك**\n"
             f"👤 الاسم: {full_name} | المعرف: {username}\n"
-            f"🆔 الأيدي: `{user.id}`\n"
-            f"📝 **ما أرسله المستخدم أسفل هذه الرسالة:**"
+            f"🆔 الأيدي: `{user.id}`"
         )
         
         inline_kb = InlineKeyboardMarkup([
@@ -205,7 +235,7 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.forward_message(chat_id=ADMIN_CHANNEL_ID, from_chat_id=chat_id, message_id=msg_id_to_forward)
             await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text="اختر الإجراء المناسب للمستخدم:", reply_markup=inline_kb)
         except Exception as e:
-            logger.error(f"Error forwarding user message/media: {e}")
+            logger.error(f"Error forwarding user message: {e}")
 
         warning_msg = await update.message.reply_text("⚠️ **الكتابة وإرسال الملفات غير مسموحة هنا، استخدم الأزرار.**")
         await asyncio.sleep(3)
