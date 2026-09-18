@@ -18,8 +18,12 @@ CHANNEL_ID = -1003924784582
 # 📌 معرف قناة الإدارة للمتابعة
 ADMIN_CHANNEL_ID = -1003956613480 
 
-# مجموعة لتخزين معرفات المستخدمين الفريدين للتحقق من (جديد أو قديم) وحساب العدد الإجمالي
+# مجموعة لتخزين معرفات المستخدمين الفريدين
 unique_users = set()
+
+# متغيرات لتتبع إحصائيات الـ 24 ساعة الأخيرة
+daily_visits = set()
+daily_errors_count = 0
 
 # قاموس لتخزين آخر حلقة شاهدها كل مستخدم
 user_last_watched = {}
@@ -39,7 +43,6 @@ SEASONS_EPISODES = {
 }
 
 EPISODES_MSG_IDS = {
-    # القسم المترجم
     (1, "sub"): {i: 206 + i - 1 for i in range(1, 56)},
     (2, "sub"): {i: 261 + i - 1 for i in range(1, 43)},
     (3, "sub"): {i: 303 + i - 1 for i in range(1, 23)},
@@ -50,8 +53,6 @@ EPISODES_MSG_IDS = {
     (8, "sub"): {i: 487 + i - 1 for i in range(1, 48)},
     (9, "sub"): {i: 534 + i - 1 for i in range(1, 35)},
     (10, "sub"): {i: 568 + i - 1 for i in range(1, 38)},
-
-    # القسم المدبلج
     (1, "dub"): {i: 605 + i - 1 for i in range(1, 87)},
     (2, "dub"): {i: 691 + i - 1 for i in range(1, 71)},
     (3, "dub"): {i: 761 + i - 1 for i in range(1, 125)},
@@ -70,6 +71,30 @@ def get_main_keyboard():
         [KeyboardButton("📺 آخر حلقة شاهدتها")]
     ], resize_keyboard=True)
 
+# 📌 دالة إرسال التقرير التلقائي كل 24 ساعة
+async def daily_report_job(context: ContextTypes.DEFAULT_TYPE):
+    global daily_visits, daily_errors_count
+    
+    new_users_count = len(daily_visits)
+    total_users_count = len(unique_users)
+    
+    report_msg = (
+        f"📊 **التقرير اليومي لأداء البوت (كل 24 ساعة)**\n\n"
+        f"👥 عدد الزوار الجدد اليوم: **{new_users_count}**\n"
+        f"📈 إجمالي المستخدمين الكلي: **{total_users_count}**\n"
+        f"⚠️ عدد الأخطاء المرصودة: **{daily_errors_count}**\n"
+        f"🟢 حالة السيرفر: **يعمل بشكل مستقر وسليم**"
+    )
+    
+    try:
+        await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=report_msg, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"Failed to send daily report: {e}")
+    
+    # إعادة تصفير عداد الزوار اليومي والأخطاء لتبدأ فترة 24 ساعة جديدة
+    daily_visits.clear()
+    daily_errors_count = 0
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     
@@ -78,6 +103,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         unique_users.add(user.id)
         user_status = "🆕 مستخدم جديد تماماً"
+
+    # تسجيل الزيارة للتقرير اليومي
+    daily_visits.add(user.id)
 
     total_users_count = len(unique_users)
     username = f"@{user.username}" if user.username else "لا يوجد معرف"
@@ -260,6 +288,8 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    global daily_errors_count
+    daily_errors_count += 1  # تسجيل الأخطاء لترسل في التقرير اليومي
     logger.error("Exception while handling an update:", exc_info=context.error)
 
 def run_web_server():
@@ -273,6 +303,10 @@ def main():
 
     application = Application.builder().token(TOKEN).build()
     
+    # 📌 تفعيل مهمة الـ 24 ساعة (تعمل تلقائياً كل 86400 ثانية = 24 ساعة، وتبدأ بعد 60 ثانية من عمل البوت)
+    job_queue = application.job_queue
+    job_queue.run_repeating(daily_report_job, interval=86400, first=60)
+
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_messages))
     application.add_error_handler(error_handler)
