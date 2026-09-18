@@ -1,25 +1,31 @@
 import logging
 import os
-import time
-import asyncio
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# إعداد التسجيل للأخطاء فقط لتوفير الموارد
-logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.WARNING)
+# إعداد السجلات
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# التوكن الخاص بك
 TOKEN = "8695639459:AAHlbqs7dlXUyGw1fweRhuzpQNBeIlHq0eo"
+
+# 📌 معرف قناتك الخاصة بالمسلسل
 CHANNEL_ID = -1003924784582
+
+# 📌 معرف قناة الإدارة للمتابعة
 ADMIN_CHANNEL_ID = -1003956613480 
 
+# مجموعة لتخزين معرفات المستخدمين الفريدين
 unique_users = set()
-banned_users = set()
+
+# متغيرات لتتبع إحصائيات الـ 24 ساعة الأخيرة
 daily_visits = set()
 daily_errors_count = 0
-user_spam_tracker = {}
+
+# قاموس لتخزين آخر حلقة شاهدها كل مستخدم
 user_last_watched = {}
 
 SEASONS_EPISODES = {
@@ -65,48 +71,60 @@ def get_main_keyboard():
         [KeyboardButton("📺 آخر حلقة شاهدتها")]
     ], resize_keyboard=True)
 
-async def send_daily_report(context):
+# 📌 دالة إرسال التقرير التلقائي كل 24 ساعة
+async def daily_report_job(context: ContextTypes.DEFAULT_TYPE):
     global daily_visits, daily_errors_count
+    
+    new_users_count = len(daily_visits)
+    total_users_count = len(unique_users)
+    
     report_msg = (
-        f"📊 **التقرير اليومي والإحصائيات الشاملة**\n\n"
-        f"👥 الزوار الجدد (اليوم): **{len(daily_visits)}**\n"
-        f"🌐 **إجمالي الزوار منذ التأسيس:** **{len(unique_users)}**\n"
-        f"⚠️ الأخطاء المسجلة: **{daily_errors_count}**\n"
-        f"🟢 الحالة: **يعمل بكفاءة مع خادم الويب للإيقاظ**"
+        f"📊 **التقرير اليومي لأداء البوت (كل 24 ساعة)**\n\n"
+        f"👥 عدد الزوار الجدد اليوم: **{new_users_count}**\n"
+        f"📈 إجمالي المستخدمين الكلي: **{total_users_count}**\n"
+        f"⚠️ عدد الأخطاء المرصودة: **{daily_errors_count}**\n"
+        f"🟢 حالة السيرفر: **يعمل بشكل مستقر وسليم**"
     )
+    
     try:
         await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=report_msg, parse_mode="Markdown")
     except Exception as e:
-        logger.error(f"Error sending report: {e}")
+        logger.error(f"Failed to send daily report: {e}")
+    
+    # إعادة تصفير عداد الزوار اليومي والأخطاء لتبدأ فترة 24 ساعة جديدة
     daily_visits.clear()
     daily_errors_count = 0
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    if user.id in banned_users:
-        return
-        
-    is_new_user = False
-    if user.id not in unique_users:
+    
+    if user.id in unique_users:
+        user_status = "🔄 مستخدم قديم (عاد لفتح البوت)"
+    else:
         unique_users.add(user.id)
-        is_new_user = True
+        user_status = "🆕 مستخدم جديد تماماً"
 
+    # تسجيل الزيارة للتقرير اليومي
     daily_visits.add(user.id)
 
-    if is_new_user:
-        username = f"@{user.username}" if user.username else "لا يوجد معرف"
-        full_name = f"{user.first_name}"
-        new_user_alert = (
-            f"👤 **مستخدم جديد انضم إلى البوت!**\n\n"
-            f"▫️ الاسم: {full_name}\n"
-            f"▫️ المعرف: {username}\n"
-            f"▫️ الأيدي: `{user.id}`\n"
-            f"🌐 إجمالي الزوار حتى الآن: **{len(unique_users)}**"
-        )
-        try:
-            await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=new_user_alert, parse_mode="Markdown")
-        except Exception as e:
-            logger.error(f"Error sending new user alert: {e}")
+    total_users_count = len(unique_users)
+    username = f"@{user.username}" if user.username else "لا يوجد معرف"
+    full_name = f"{user.first_name} {user.last_name or ''}".strip()
+    
+    admin_msg = (
+        f"👤 **نشاط جديد في البوت!**\n\n"
+        f"📌 الحالة: **{user_status}**\n"
+        f"📛 الاسم: {full_name}\n"
+        f"🔗 المعرف: {username}\n"
+        f"🆔 الأيدي: `{user.id}`\n"
+        f"📊 إجمالي عدد المستخدمين: **{total_users_count}**\n\n"
+        f"🟢 **حالة السيرفر:** يعمل بشكل مستقر وسليم"
+    )
+    
+    try:
+        await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=admin_msg, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"Failed to send visit info to admin channel: {e}")
 
     await update.message.reply_text(
         "🐺 **أهلاً بك في بوت مسلسل وادي الذئاب الرسمي**\n\nاختر من الأزرار في الأسفل:",
@@ -115,193 +133,182 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    if user.id in banned_users:
-        return
+    text = update.message.text
+    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
 
-    msg = update.message
-    text = msg.text if msg.text else (msg.caption or "")
-    chat_id = msg.chat.id
-    user_id = user.id
-
-    if text in ["🎬 النسخة المترجمة", "🎙️ النسخة المدبلجة", "📺 آخر حلقة شاهدتها", "🔙 القائمة الرئيسية"] or \
-       ("الجزء " in text and ("مترجم -" in text or "مدبلج -" in text)) or \
-       text.startswith("حلقة "):
-        
-        if user_id in user_spam_tracker:
-            user_spam_tracker[user_id]["count"] = 0
-
-        if text == "🎬 النسخة المترجمة":
-            context.user_data["media_type"] = "sub"
-            keyboard = [[KeyboardButton(f"مترجم - الجزء {s} ({SEASONS_EPISODES[s]['sub']} ح)")] for s in range(1, 11)]
-            keyboard.append([KeyboardButton("⚠️ الجزء 11 (مترجم) - متوقف")])
-            keyboard.append([KeyboardButton("🔙 القائمة الرئيسية")])
-            await msg.reply_text("📂 اختر الجزء المطلوب:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
-
-        elif text == "🎙️ النسخة المدبلجة":
-            context.user_data["media_type"] = "dub"
-            keyboard = [[KeyboardButton(f"مدبلج - الجزء {s} ({SEASONS_EPISODES[s]['dub']} ح)")] for s in range(1, 11)]
-            keyboard.append([KeyboardButton("⚠️ الجزء 11 (مدبلج) - متوقف")])
-            keyboard.append([KeyboardButton("🔙 القائمة الرئيسية")])
-            await msg.reply_text("📂 اختر الجزء المطلوب:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
-
-        elif text == "📺 آخر حلقة شاهدتها":
-            last_ep_info = user_last_watched.get(user_id)
-            if last_ep_info:
-                msg_id = EPISODES_MSG_IDS.get((last_ep_info["season"], last_ep_info["type"]), {}).get(last_ep_info["ep"])
-                if msg_id:
-                    await context.bot.copy_message(chat_id=chat_id, from_chat_id=CHANNEL_ID, message_id=msg_id)
+    if text == "🎬 النسخة المترجمة":
+        context.user_data["media_type"] = "sub"
+        keyboard = []
+        row = []
+        for season in range(1, 12):
+            if season == 11:
+                if row:
+                    keyboard.append(row)
+                    row = []
+                keyboard.append([KeyboardButton("⚠️ الجزء 11 (مترجم) - متوقف")])
             else:
-                await msg.reply_text("⚠️ لم تقم بمشاهدة أي حلقة حتى الآن.", reply_markup=get_main_keyboard())
-
-        elif text == "🔙 القائمة الرئيسية":
-            await msg.reply_text("🐺 القائمة الرئيسية:", reply_markup=get_main_keyboard())
-
-        elif "الجزء " in text:
-            try:
-                parts = text.split("-")
-                season_num = int(parts[1].strip().split(" ")[1])
-                media_type = "sub" if "مترجم" in parts[0] else "dub"
-                context.user_data["current_season"] = season_num
-                context.user_data["media_type"] = media_type
-                total = SEASONS_EPISODES[season_num][media_type]
-                
-                keyboard = [[KeyboardButton(f"حلقة {ep}") for ep in range(1, total + 1)]]
-                keyboard.append([KeyboardButton("🔙 القائمة الرئيسية")])
-                await msg.reply_text(f"🎬 اختر رقم الحلقة:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
-            except:
-                pass
-
-        elif text.startswith("حلقة "):
-            try:
-                ep_num = int(text.split(" ")[1])
-                s_num = context.user_data.get("current_season", 1)
-                m_type = context.user_data.get("media_type", "sub")
-                user_last_watched[user_id] = {"season": s_num, "ep": ep_num, "type": m_type}
-                msg_id = EPISODES_MSG_IDS.get((s_num, m_type), {}).get(ep_num)
-                if msg_id:
-                    await context.bot.copy_message(chat_id=chat_id, from_chat_id=CHANNEL_ID, message_id=msg_id)
-            except:
-                pass
-    else:
-        is_link = "http://" in text or "https://" in text or "t.me://" in text or "t.me/" in text or "www." in text
-        current_time = time.time()
+                count = SEASONS_EPISODES[season]["sub"]
+                row.append(KeyboardButton(f"مترجم - الجزء {season} ({count} ح)"))
+                if len(row) == 2:
+                    keyboard.append(row)
+                    row = []
+        if row:
+            keyboard.append(row)
         
-        if user_id not in user_spam_tracker:
-            user_spam_tracker[user_id] = {"count": 1, "last_time": current_time}
-        else:
-            if current_time - user_spam_tracker[user_id]["last_time"] < 10:
-                user_spam_tracker[user_id]["count"] += 1
-            user_spam_tracker[user_id]["last_time"] = current_time
+        keyboard.append([KeyboardButton("🔙 القائمة الرئيسية")])
+        await update.message.reply_text("📂 اختر الجزء المطلوب (المترجم):", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
 
-        spam_count = user_spam_tracker[user_id]["count"]
-        msg_id_to_forward = msg.message_id
+    elif text == "🎙️ النسخة المدبلجة":
+        context.user_data["media_type"] = "dub"
+        keyboard = []
+        row = []
+        for season in range(1, 12):
+            if season == 11:
+                if row:
+                    keyboard.append(row)
+                    row = []
+                keyboard.append([KeyboardButton("⚠️ الجزء 11 (مدبلج) - متوقف")])
+            else:
+                count = SEASONS_EPISODES[season]["dub"]
+                row.append(KeyboardButton(f"مدبلج - الجزء {season} ({count} ح)"))
+                if len(row) == 2:
+                    keyboard.append(row)
+                    row = []
+        if row:
+            keyboard.append(row)
+        
+        keyboard.append([KeyboardButton("🔙 القائمة الرئيسية")])
+        await update.message.reply_text("📂 اختر الجزء المطلوب (المدبلج):", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
 
-        # حذف الرسالة المخالفة من محادثة المستخدم فوراً
-        try:
-            await msg.delete()
-        except:
-            pass
-
-        username = f"@{user.username}" if user.username else "لا يوجد معرف"
-        full_name = f"{user.first_name}"
-
-        if is_link or spam_count > 4:
-            banned_users.add(user_id)
-            auto_ban_report = (
-                f"🚨 **حظر تلقائي فوري للمستخدم!**\n\n"
-                f"👤 الاسم: {full_name}\n"
-                f"🔗 المعرف: {username}\n"
-                f"🆔 الأيدي: `{user.id}`\n"
-                f"📌 السبب: {'رابط مريب' if is_link else 'إغراق (Spam)'}"
+    elif text == "📺 آخر حلقة شاهدتها":
+        last_ep_info = user_last_watched.get(user_id)
+        if last_ep_info:
+            season_num = last_ep_info["season"]
+            ep_num = last_ep_info["ep"]
+            media_type = last_ep_info["type"]
+            type_name = "مترجمة 🎬" if media_type == "sub" else "مدبلجة 🎙️"
+            
+            await update.message.reply_text(
+                f"📌 **آخر حلقة قمت بمشاهدتها:**\n"
+                f"▫️ النسخة: {type_name}\n"
+                f"▫️ الجزء: {season_num}\n"
+                f"▫️ الحلقة: {ep_num}\n\n"
+                f"جاري إرسالها لك الان...",
+                reply_markup=get_main_keyboard(),
+                parse_mode="Markdown"
             )
-            try:
-                await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=auto_ban_report, parse_mode="Markdown")
-                await context.bot.forward_message(chat_id=ADMIN_CHANNEL_ID, from_chat_id=chat_id, message_id=msg_id_to_forward)
-            except:
-                pass
-            return
+            
+            msg_id = EPISODES_MSG_IDS.get((season_num, media_type), {}).get(ep_num)
+            if msg_id:
+                try:
+                    await context.bot.copy_message(chat_id=chat_id, from_chat_id=CHANNEL_ID, message_id=msg_id)
+                except Exception as e:
+                    logger.error(f"Error copying last watched episode: {e}")
+            else:
+                await update.message.reply_text("⚠️ عذراً، لم يتم العثور على ملف الحلقة.")
+        else:
+            await update.message.reply_text(
+                "⚠️ **لم تقم بمشاهدة أي حلقة حتى الآن!**\nقم بتصفح الأقسام واختر حلقتك الأولى.",
+                reply_markup=get_main_keyboard(),
+                parse_mode="Markdown"
+            )
 
-        # 1. إرسال تقرير معلومات المستخدم الكامل أولاً
-        info_header = (
-            f"⚠️ **محاولة إرسال مخالفة - بانتظار قرارك**\n\n"
-            f"👤 الاسم: {full_name}\n"
-            f"🔗 المعرف: {username}\n"
-            f"🆔 الأيدي: `{user.id}`"
-        )
-        
-        inline_kb = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("🛑 حظر", callback_data=f"ban_{user_id}"),
-                InlineKeyboardButton("✅ السماح", callback_data=f"pass_{user_id}")
-            ]
-        ])
+    elif text == "🔙 القائمة الرئيسية":
+        await update.message.reply_text("🐺 **القائمة الرئيسية:**", reply_markup=get_main_keyboard(), parse_mode="Markdown")
 
+    elif "الجزء " in text and ("مترجم -" in text or "مدبلج -" in text):
         try:
-            await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=info_header, parse_mode="Markdown")
-            # 2. تحويل الملف أو الصورة أو الفيديو أو النص الأصلي لقناة الإدارة
-            await context.bot.forward_message(chat_id=ADMIN_CHANNEL_ID, from_chat_id=chat_id, message_id=msg_id_to_forward)
-            # 3. إرسال أزرار التحكم تحتها
-            await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text="اختر الإجراء المناسب للمستخدم:", reply_markup=inline_kb)
-        except Exception as e:
-            logger.error(f"Error handling unauthorized message: {e}")
+            parts = text.split("-")
+            media_prefix = parts[0].strip()
+            season_part = parts[1].strip()
+            season_num = int(season_part.split(" ")[1])
+            
+            media_type = "sub" if "مترجم" in media_prefix else "dub"
+            context.user_data["current_season"] = season_num
+            context.user_data["media_type"] = media_type
 
-        warning_msg = await msg.reply_text("⚠️ **الكتابة وإرسال الملفات غير مسموحة هنا، استخدم الأزرار.**")
-        await asyncio.sleep(3)
+            total_episodes = SEASONS_EPISODES[season_num][media_type]
+            if total_episodes == 0:
+                await update.message.reply_text("⚠️ هذا الجزء غير متوفر حالياً.")
+                return
+
+            keyboard = []
+            row = []
+            for ep in range(1, total_episodes + 1):
+                row.append(KeyboardButton(f"حلقة {ep}"))
+                if len(row) == 5:
+                    keyboard.append(row)
+                    row = []
+            if row:
+                keyboard.append(row)
+            
+            back_text = "🎬 النسخة المترجمة" if media_type == "sub" else "🎙️ النسخة المدبلجة"
+            keyboard.append([KeyboardButton(back_text), KeyboardButton("🔙 القائمة الرئيسية")])
+            
+            await update.message.reply_text(f"🎬 اختر رقم الحلقة من الجزء {season_num}:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
+        except Exception as e:
+            logger.error(f"Error parsing season selection: {e}")
+
+    elif text.startswith("حلقة "):
+        try:
+            ep_num = int(text.split(" ")[1])
+            season_num = context.user_data.get("current_season", 1)
+            media_type = context.user_data.get("media_type", "sub")
+
+            user_last_watched[user_id] = {
+                "season": season_num,
+                "ep": ep_num,
+                "type": media_type
+            }
+
+            msg_id = EPISODES_MSG_IDS.get((season_num, media_type), {}).get(ep_num)
+            if msg_id:
+                await context.bot.copy_message(chat_id=chat_id, from_chat_id=CHANNEL_ID, message_id=msg_id)
+            else:
+                await update.message.reply_text(f"⚠️ عذراً، حلقة الجزء {season_num} - الحلقة {ep_num} لم يتم ربطها بعد.")
+        except Exception as e:
+            logger.error(f"Error sending episode: {e}")
+
+    else:
+        try:
+            await update.message.delete()
+        except Exception:
+            pass
+        
+        warning_msg = await update.message.reply_text(
+            "⚠️ **عذراً، الكتابة النصية غير مسموحة هنا!**\nالرجاء استخدام الأزرار في الأسفل للتنقل.",
+            parse_mode="Markdown"
+        )
+        import asyncio
+        await asyncio.sleep(4)
         try:
             await warning_msg.delete()
-        except:
-            pass
-
-async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-    action, target_user_id = data.split("_")
-    target_user_id = int(target_user_id)
-
-    if action == "ban":
-        banned_users.add(target_user_id)
-        try:
-            await query.edit_message_text(text=f"🛑 **تم حظر المستخدم (ID: `{target_user_id}`) بنجاح.**", parse_mode="Markdown")
-        except:
-            pass
-    elif action == "pass":
-        try:
-            await query.edit_message_text(text=f"✅ **تم السماح للمستخدم (ID: `{target_user_id}`) بمتابعة النشاط.**", parse_mode="Markdown")
-        except:
+        except Exception:
             pass
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     global daily_errors_count
-    daily_errors_count += 1
+    daily_errors_count += 1  # تسجيل الأخطاء لترسل في التقرير اليومي
+    logger.error("Exception while handling an update:", exc_info=context.error)
 
-# خادم الويب البسيط لاستقبال طلبات الإيقاظ الخارجية (Keep-alive)
 def run_web_server():
-    class SimpleHandler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"Bot is active and running!")
-        def log_message(self, format, *args):
-            pass # لمنع طباعة السجلات الوهمية وتوفير الذاكرة
-
     port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(('0.0.0.0', port), SimpleHandler)
+    server = HTTPServer(('0.0.0.0', port), BaseHTTPRequestHandler)
     server.serve_forever()
 
 def main():
-    # تشغيل خادم الويب في خلفية هادئة ليتسق مع خدمة الإيقاظ
-    threading.Thread(target=run_web_server, daemon=True).start()
+    server_thread = threading.Thread(target=run_web_server, daemon=True)
+    server_thread.start()
 
     application = Application.builder().token(TOKEN).build()
     
-    if application.job_queue:
-        application.job_queue.run_repeating(send_daily_report, interval=86400, first=60)
+    # 📌 تفعيل مهمة الـ 24 ساعة (تعمل تلقائياً كل 86400 ثانية = 24 ساعة، وتبدأ بعد 60 ثانية من عمل البوت)
+    job_queue = application.job_queue
+    job_queue.run_repeating(daily_report_job, interval=86400, first=60)
 
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(admin_callback_handler, pattern="^(ban|pass)_"))
-    application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_messages))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_messages))
     application.add_error_handler(error_handler)
 
     application.run_polling(drop_pending_updates=True, stop_signals=None)
