@@ -305,14 +305,11 @@ def main():
 
     application = Application.builder().token(TOKEN).build()
     
-    # تشغيل مهمة التقرير في الخلفية عبر تليجرام البوت
-    application.job_queue = None  # لتجنب أي مشاكل
-    
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_messages))
     application.add_error_handler(error_handler)
 
-    # تشغيل حلقة التقرير اليومي بالتوازي مع البوت
+    # تشغيل حلقة التقرير اليومي بالتوازي مع البوت بأمان تام
     async def post_init(app: Application):
         asyncio.create_task(send_daily_report_loop(app.bot))
 
