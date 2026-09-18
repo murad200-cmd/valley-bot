@@ -3,6 +3,7 @@ import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 import time
+import asyncio
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 
@@ -57,11 +58,28 @@ EPISODES_MSG_IDS = {
     (10, "dub"): {i: 1371 + i - 1 for i in range(1, 38)},
 }
 
+# الترتيب الأصلي المفضل لأزرار القائمة الرئيسية
 def get_main_keyboard():
     return ReplyKeyboardMarkup([
         [KeyboardButton("🎬 النسخة المترجمة"), KeyboardButton("🎙️ النسخة المدبلجة")],
         [KeyboardButton("📺 آخر حلقة شاهدتها")]
     ], resize_keyboard=True)
+
+async def send_daily_report(context):
+    global daily_visits, daily_errors_count
+    report_msg = (
+        f"📊 **التقرير اليومي والإحصائيات الشاملة**\n\n"
+        f"👥 الزوار الجدد (اليوم): **{len(daily_visits)}**\n"
+        f"🌐 **إجمالي الزوار منذ التأسيس:** **{len(unique_users)}**\n"
+        f"⚠️ الأخطاء المسجلة: **{daily_errors_count}**\n"
+        f"🟢 الحالة: **يعمل بكفاءة تامة على Render**"
+    )
+    try:
+        await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=report_msg, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"Error sending report: {e}")
+    daily_visits.clear()
+    daily_errors_count = 0
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -202,7 +220,6 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
         warning_msg = await update.message.reply_text("⚠️ **الكتابة وإرسال الملفات غير مسموحة هنا، استخدم الأزرار.**")
-        import asyncio
         await asyncio.sleep(3)
         try:
             await warning_msg.delete()
@@ -241,6 +258,9 @@ def main():
     threading.Thread(target=run_web_server, daemon=True).start()
     application = Application.builder().token(TOKEN).build()
     
+    if application.job_queue:
+        application.job_queue.run_repeating(send_daily_report, interval=86400, first=60)
+
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(admin_callback_handler, pattern="^(ban|pass)_"))
     application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_messages))
