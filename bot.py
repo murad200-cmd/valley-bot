@@ -182,45 +182,15 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except:
                 pass
     else:
-        is_link = "http://" in text or "https://" in text or "t.me://" in text or "t.me/" in text or "www." in text
-        current_time = time.time()
-        
-        if user_id not in user_spam_tracker:
-            user_spam_tracker[user_id] = {"count": 1, "last_time": current_time}
-        else:
-            if current_time - user_spam_tracker[user_id]["last_time"] < 10:
-                user_spam_tracker[user_id]["count"] += 1
-            user_spam_tracker[user_id]["last_time"] = current_time
-
-        spam_count = user_spam_tracker[user_id]["count"]
         msg_id_to_forward = update.message.message_id
-
-        try:
-            await update.message.delete()
-        except:
-            pass
-
         username = f"@{user.username}" if user.username else "لا يوجد معرف"
         full_name = f"{user.first_name}"
-
-        if is_link or spam_count > 4:
-            banned_users.add(user_id)
-            auto_ban_report = (
-                f"🚨 **حظر تلقائي فوري!**\n"
-                f"👤 الاسم: {full_name} | المعرف: {username} | الأيدي: `{user.id}`\n"
-                f"📌 السبب: {'رابط مريب' if is_link else 'إغراق (Spam)'}"
-            )
-            try:
-                await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=auto_ban_report, parse_mode="Markdown")
-                await context.bot.forward_message(chat_id=ADMIN_CHANNEL_ID, from_chat_id=chat_id, message_id=msg_id_to_forward)
-            except:
-                pass
-            return
 
         info_header = (
             f"⚠️ **محاولة كتابة أو إرسال خاطئة - بانتظار قرارك**\n"
             f"👤 الاسم: {full_name} | المعرف: {username}\n"
-            f"🆔 الأيدي: `{user.id}`"
+            f"🆔 الأيدي: `{user.id}`\n"
+            f"📝 **ما أرسله المستخدم أسفل هذه الرسالة:**"
         )
         
         inline_kb = InlineKeyboardMarkup([
@@ -235,7 +205,7 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.forward_message(chat_id=ADMIN_CHANNEL_ID, from_chat_id=chat_id, message_id=msg_id_to_forward)
             await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text="اختر الإجراء المناسب للمستخدم:", reply_markup=inline_kb)
         except Exception as e:
-            logger.error(f"Error forwarding user message: {e}")
+            logger.error(f"Error forwarding user message/media: {e}")
 
         warning_msg = await update.message.reply_text("⚠️ **الكتابة وإرسال الملفات غير مسموحة هنا، استخدم الأزرار.**")
         await asyncio.sleep(3)
@@ -248,28 +218,77 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
     query = update.callback_query
     await query.answer()
     data = query.data
-    action, target_user_id = data.split("_")
-    target_user_id = int(target_user_id)
+    parts = data.split("_")
+    action = parts[0]
+    target_user_id = int(parts[1])
 
     if action == "ban":
         banned_users.add(target_user_id)
+        new_kb = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("📌 الاستمرار بالحظر", callback_data=f"keepban_{target_user_id}"),
+                InlineKeyboardButton("🔓 إزالة الحظر", callback_data=f"unban_{target_user_id}")
+            ]
+        ])
         try:
-            await query.edit_message_text(text=f"🛑 **تم حظر المستخدم (ID: `{target_user_id}`) بنجاح.**", parse_mode="Markdown")
+            await query.edit_message_text(
+                text=f"🛑 **تم حظر المستخدم (ID: `{target_user_id}`) بنجاح.**\nاختر الإجراء التالي:", 
+                parse_mode="Markdown", 
+                reply_markup=new_kb
+            )
         except:
             pass
+
     elif action == "pass":
         try:
-            await query.edit_message_text(text=f"✅ **تم السماح للمستخدم (ID: `{target_user_id}`) بمتابعة النشاط.**", parse_mode="Markdown")
+            await query.edit_message_text(
+                text=f"✅ **تم السماح للمستخدم (ID: `{target_user_id}`) بمتابعة النشاط.**", 
+                parse_mode="Markdown"
+            )
+        except:
+            pass
+
+    elif action == "keepban":
+        try:
+            await query.edit_message_text(
+                text=f"📌 **تم تأكيد الاستمرار بحظر المستخدم (ID: `{target_user_id}`).**", 
+                parse_mode="Markdown"
+            )
+        except:
+            pass
+
+    elif action == "unban":
+        if target_user_id in banned_users:
+            banned_users.remove(target_user_id)
+        try:
+            await query.edit_message_text(
+                text=f"🔓 **تم إزالة الحظر عن المستخدم (ID: `{target_user_id}`) بنجاح.**", 
+                parse_mode="Markdown"
+            )
         except:
             pass
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     global daily_errors_count
     daily_errors_count += 1
+    try:
+        error_msg = f"⚠️ **خطأ تقني مؤقت في البوت:**\n`{context.error}`"
+        await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=error_msg, parse_mode="Markdown")
+    except:
+        pass
+
+class SafeHTTPHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is active and running smoothly via Telegram!")
+    
+    def log_message(self, format, *args):
+        return 
 
 def run_web_server():
     port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(('0.0.0.0', port), BaseHTTPRequestHandler)
+    server = HTTPServer(('0.0.0.0', port), SafeHTTPHandler)
     server.serve_forever()
 
 def main():
@@ -280,7 +299,7 @@ def main():
         application.job_queue.run_repeating(send_daily_report, interval=86400, first=60)
 
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(admin_callback_handler, pattern="^(ban|pass)_"))
+    application.add_handler(CallbackQueryHandler(admin_callback_handler, pattern="^(ban|pass|keepban|unban)_"))
     application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_messages))
     application.add_error_handler(error_handler)
 
