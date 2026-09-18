@@ -58,7 +58,7 @@ EPISODES_MSG_IDS = {
     (10, "dub"): {i: 1371 + i - 1 for i in range(1, 38)},
 }
 
-# الترتيب الأصلي المفضل لأزرار القائمة الرئيسية
+# الترتيب الأصلي المفضّل لأزرار القائمة الرئيسية
 def get_main_keyboard():
     return ReplyKeyboardMarkup([
         [KeyboardButton("🎬 النسخة المترجمة"), KeyboardButton("🎙️ النسخة المدبلجة")],
@@ -86,9 +86,28 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user.id in banned_users:
         return
         
+    is_new_user = False
     if user.id not in unique_users:
         unique_users.add(user.id)
+        is_new_user = True
+
     daily_visits.add(user.id)
+
+    # إذا كان المستخدم جديد كلياً، قم بإرسال إشعار فوري لقناة الإدارة مع معلوماته
+    if is_new_user:
+        username = f"@{user.username}" if user.username else "لا يوجد معرف"
+        full_name = f"{user.first_name}"
+        new_user_alert = (
+            f"👤 **مستخدم جديد انضم إلى البوت!**\n\n"
+            f"▫️ الاسم: {full_name}\n"
+            f"▫️ المعرف: {username}\n"
+            f"▫️ الأيدي: `{user.id}`\n"
+            f"🌐 إجمالي الزوار حتى الآن: **{len(unique_users)}**"
+        )
+        try:
+            await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=new_user_alert, parse_mode="Markdown")
+        except Exception as e:
+            logger.error(f"Error sending new user alert: {e}")
 
     await update.message.reply_text(
         "🐺 **أهلاً بك في بوت مسلسل وادي الذئاب الرسمي**\n\nاختر من الأزرار في الأسفل:",
