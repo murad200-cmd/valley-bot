@@ -2,6 +2,7 @@ import logging
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
+import asyncio
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -71,29 +72,32 @@ def get_main_keyboard():
         [KeyboardButton("📺 آخر حلقة شاهدتها")]
     ], resize_keyboard=True)
 
-# 📌 دالة إرسال التقرير التلقائي كل 24 ساعة
-async def daily_report_job(context: ContextTypes.DEFAULT_TYPE):
-    global daily_visits, daily_errors_count
-    
-    new_users_count = len(daily_visits)
-    total_users_count = len(unique_users)
-    
-    report_msg = (
-        f"📊 **التقرير اليومي لأداء البوت (كل 24 ساعة)**\n\n"
-        f"👥 عدد الزوار الجدد اليوم: **{new_users_count}**\n"
-        f"📈 إجمالي المستخدمين الكلي: **{total_users_count}**\n"
-        f"⚠️ عدد الأخطاء المرصودة: **{daily_errors_count}**\n"
-        f"🟢 حالة السيرفر: **يعمل بشكل مستقر وسليم**"
-    )
-    
-    try:
-        await context.bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=report_msg, parse_mode="Markdown")
-    except Exception as e:
-        logger.error(f"Failed to send daily report: {e}")
-    
-    # إعادة تصفير عداد الزوار اليومي والأخطاء لتبدأ فترة 24 ساعة جديدة
-    daily_visits.clear()
-    daily_errors_count = 0
+# 📌 دالة إرسال التقرير التلقائي عبر حلقة بايثون الخلفية
+async def send_daily_report_loop(bot):
+    await asyncio.sleep(60)  # الانتظار دقيقة بعد تشغيل البوت لإرسال أول تقرير تجريبي
+    while True:
+        global daily_visits, daily_errors_count
+        new_users_count = len(daily_visits)
+        total_users_count = len(unique_users)
+        
+        report_msg = (
+            f"📊 **التقرير اليومي لأداء البوت (كل 24 ساعة)**\n\n"
+            f"👥 عدد الزوار الجدد اليوم: **{new_users_count}**\n"
+            f"📈 إجمالي المستخدمين الكلي: **{total_users_count}**\n"
+            f"⚠️ عدد الأخطاء المرصودة: **{daily_errors_count}**\n"
+            f"🟢 حالة السيرفر: **يعمل بشكل مستقر وسليم**"
+        )
+        
+        try:
+            await bot.send_message(chat_id=ADMIN_CHANNEL_ID, text=report_msg, parse_mode="Markdown")
+        except Exception as e:
+            logger.error(f"Failed to send daily report: {e}")
+        
+        daily_visits.clear()
+        daily_errors_count = 0
+        
+        # الانتظار 24 ساعة (86400 ثانية) قبل التقرير القادم
+        await asyncio.sleep(86400)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -104,7 +108,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         unique_users.add(user.id)
         user_status = "🆕 مستخدم جديد تماماً"
 
-    # تسجيل الزيارة للتقرير اليومي
     daily_visits.add(user.id)
 
     total_users_count = len(unique_users)
@@ -280,7 +283,6 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⚠️ **عذراً، الكتابة النصية غير مسموحة هنا!**\nالرجاء استخدام الأزرار في الأسفل للتنقل.",
             parse_mode="Markdown"
         )
-        import asyncio
         await asyncio.sleep(4)
         try:
             await warning_msg.delete()
@@ -289,7 +291,7 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     global daily_errors_count
-    daily_errors_count += 1  # تسجيل الأخطاء لترسل في التقرير اليومي
+    daily_errors_count += 1
     logger.error("Exception while handling an update:", exc_info=context.error)
 
 def run_web_server():
@@ -303,15 +305,21 @@ def main():
 
     application = Application.builder().token(TOKEN).build()
     
-    # 📌 تفعيل مهمة الـ 24 ساعة (تعمل تلقائياً كل 86400 ثانية = 24 ساعة، وتبدأ بعد 60 ثانية من عمل البوت)
-    job_queue = application.job_queue
-    job_queue.run_repeating(daily_report_job, interval=86400, first=60)
-
+    # تشغيل مهمة التقرير في الخلفية عبر تليجرام البوت
+    application.job_queue = None  # لتجنب أي مشاكل
+    
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_messages))
     application.add_error_handler(error_handler)
+
+    # تشغيل حلقة التقرير اليومي بالتوازي مع البوت
+    async def post_init(app: Application):
+        asyncio.create_task(send_daily_report_loop(app.bot))
+
+    application.post_init = post_init
 
     application.run_polling(drop_pending_updates=True, stop_signals=None)
 
 if __name__ == "__main__":
     main()
+
