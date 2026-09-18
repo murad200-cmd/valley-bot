@@ -2,8 +2,8 @@ import logging
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # إعداد السجلات
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -90,65 +90,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Failed to send visit info to admin channel: {e}")
 
     keyboard = [
-        [
-            InlineKeyboardButton("🎬 النسخة المترجمة", callback_data="type_sub"),
-            InlineKeyboardButton("🎙️ النسخة المدبلجة", callback_data="type_dub")
-        ]
+        [KeyboardButton("🎬 النسخة المترجمة"), KeyboardButton("🎙️ النسخة المدبلجة")]
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
-    text = "🐺 **أهلاً بك في بوت مسلسل وادي الذئاب الرسمي**\n\nاختر النسخة من الأزرار بالأسفل:"
-    
-    if update.message:
-        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
-    elif update.callback_query:
-        await update.callback_query.message.edit_text(text, reply_markup=reply_markup, parse_mode="Markdown")
-
-async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """دالة حماية لمنع استخدام الكيبورد وكتابة الرسائل النصية"""
-    try:
-        # حذف رسالة النص التي كتبها المستخدم لمنع الفوضى في البوت
-        await update.message.delete()
-    except Exception:
-        pass
-    
-    # إرسال تنبيه مؤقت أو رسالة توجيهية للمستخدم
-    warning_msg = await update.message.reply_text(
-        "⚠️ **عذراً، الكتابة النصية غير مسموحة هنا!**\nالرجاء استخدام الأزرار الظاهرة في الشاشة للتنقل داخل البوت.",
+    await update.message.reply_text(
+        "🐺 **أهلاً بك في بوت مسلسل وادي الذئاب الرسمي**\n\nاختر النسخة من الأزرار في الأسفل:",
+        reply_markup=reply_markup,
         parse_mode="Markdown"
     )
-    
-    # حذف رسالة التنبيه بعد 4 ثوانٍ للحفاظ على نظافة المحادثة
-    import asyncio
-    await asyncio.sleep(4)
-    try:
-        await warning_msg.delete()
-    except Exception:
-        pass
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-    chat_id = query.message.chat_id
+async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    chat_id = update.effective_chat.id
 
-    if data == "main_menu":
-        keyboard = [
-            [
-                InlineKeyboardButton("🎬 النسخة المترجمة", callback_data="type_sub"),
-                InlineKeyboardButton("🎙️ النسخة المدبلجة", callback_data="type_dub")
-            ]
-        ]
-        await query.message.edit_text(
-            "🐺 **أهلاً بك مجدداً. اختر النسخة:**",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown"
-        )
-
-    elif data in ["type_sub", "type_dub"]:
-        media_type = "sub" if data == "type_sub" else "dub"
-        context.user_data["media_type"] = media_type
-        
+    if text == "🎬 النسخة المترجمة":
+        context.user_data["media_type"] = "sub"
         keyboard = []
         row = []
         for season in range(1, 12):
@@ -156,66 +113,111 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if row:
                     keyboard.append(row)
                     row = []
-                keyboard.append([InlineKeyboardButton(f"⚠️ الموسم 11 ({'مترجم' if media_type=='sub' else 'مدبلج'}) - متوقف", callback_data="none")])
+                keyboard.append([KeyboardButton(f"⚠️ الموسم 11 (مترجم) - متوقف")])
             else:
-                count = SEASONS_EPISODES[season][media_type]
-                row.append(InlineKeyboardButton(f"الموسم {season} ({count} ح)", callback_data=f"season_{season}"))
+                count = SEASONS_EPISODES[season]["sub"]
+                row.append(KeyboardButton(f"مترجم - س {season} ({count} ح)"))
                 if len(row) == 2:
                     keyboard.append(row)
                     row = []
         if row:
             keyboard.append(row)
         
-        keyboard.append([InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="main_menu")])
-        
-        type_name = "المترجمة" if media_type == "sub" else "المدبلجة"
-        await query.message.edit_text(
-            f"📂 اختر الموسم المطلوب ({type_name}):",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        keyboard.append([KeyboardButton("🔙 القائمة الرئيسية")])
+        await update.message.reply_text("📂 اختر الموسم المطلوب (المترجم):", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
 
-    elif data.startswith("season_"):
-        season_num = int(data.split("_")[1])
-        context.user_data["current_season"] = season_num
-        media_type = context.user_data.get("media_type", "sub")
-        
-        total_episodes = SEASONS_EPISODES[season_num][media_type]
-        if total_episodes == 0:
-            await query.answer("⚠️ هذا الموسم غير متوفر حالياً.", show_alert=True)
-            return
-
+    elif text == "🎙️ النسخة المدبلجة":
+        context.user_data["media_type"] = "dub"
         keyboard = []
         row = []
-        for ep in range(1, total_episodes + 1):
-            row.append(InlineKeyboardButton(str(ep), callback_data=f"ep_{ep}"))
-            if len(row) == 5:
-                keyboard.append(row)
-                row = []
+        for season in range(1, 12):
+            if season == 11:
+                if row:
+                    keyboard.append(row)
+                    row = []
+                keyboard.append([KeyboardButton(f"⚠️ الموسم 11 (مدبلج) - متوقف")])
+            else:
+                count = SEASONS_EPISODES[season]["dub"]
+                row.append(KeyboardButton(f"مدبلج - س {season} ({count} ح)"))
+                if len(row) == 2:
+                    keyboard.append(row)
+                    row = []
         if row:
             keyboard.append(row)
         
-        back_data = "type_sub" if media_type == "sub" else "type_dub"
-        keyboard.append([InlineKeyboardButton("🔙 عودة للمواسم", callback_data=back_data)])
-        
-        await query.message.edit_text(
-            f"🎬 اختر رقم الحلقة من الموسم {season_num}:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        keyboard.append([KeyboardButton("🔙 القائمة الرئيسية")])
+        await update.message.reply_text("📂 اختر الموسم المطلوب (المدبلج):", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
 
-    elif data.startswith("ep_"):
-        ep_num = int(data.split("_")[1])
-        season_num = context.user_data.get("current_season", 1)
-        media_type = context.user_data.get("media_type", "sub")
+    elif text == "🔙 القائمة الرئيسية":
+        keyboard = [
+            [KeyboardButton("🎬 النسخة المترجمة"), KeyboardButton("🎙️ النسخة المدبلجة")]
+        ]
+        await update.message.reply_text("🐺 **القائمة الرئيسية:**", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True), parse_mode="Markdown")
 
-        msg_id = EPISODES_MSG_IDS.get((season_num, media_type), {}).get(ep_num)
-        if msg_id:
-            try:
+    elif "س " in text and ("مترجم -" in text or "مدبلج -" in text):
+        try:
+            parts = text.split("-")
+            media_prefix = parts[0].strip()
+            season_part = parts[1].strip()
+            season_num = int(season_part.split(" ")[1])
+            
+            media_type = "sub" if "مترجم" in media_prefix else "dub"
+            context.user_data["current_season"] = season_num
+            context.user_data["media_type"] = media_type
+
+            total_episodes = SEASONS_EPISODES[season_num][media_type]
+            if total_episodes == 0:
+                await update.message.reply_text("⚠️ هذا الموسم غير متوفر حالياً.")
+                return
+
+            keyboard = []
+            row = []
+            for ep in range(1, total_episodes + 1):
+                row.append(KeyboardButton(f"حلقة {ep}"))
+                if len(row) == 5:
+                    keyboard.append(row)
+                    row = []
+            if row:
+                keyboard.append(row)
+            
+            back_text = "🎬 النسخة المترجمة" if media_type == "sub" else "🎙️ النسخة المدبلجة"
+            keyboard.append([KeyboardButton(back_text), KeyboardButton("🔙 القائمة الرئيسية")])
+            
+            await update.message.reply_text(f"🎬 اختر رقم الحلقة من الموسم {season_num}:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
+        except Exception as e:
+            logger.error(f"Error parsing season selection: {e}")
+
+    elif text.startswith("حلقة "):
+        try:
+            ep_num = int(text.split(" ")[1])
+            season_num = context.user_data.get("current_season", 1)
+            media_type = context.user_data.get("media_type", "sub")
+
+            msg_id = EPISODES_MSG_IDS.get((season_num, media_type), {}).get(ep_num)
+            if msg_id:
                 await context.bot.copy_message(chat_id=chat_id, from_chat_id=CHANNEL_ID, message_id=msg_id)
-            except Exception as e:
-                logger.error(f"Error copying message: {e}")
-                await query.answer("⚠️ حدث عطل أثناء إرسال الحلقة.", show_alert=True)
-        else:
-            await query.answer(f"⚠️ عذراً، حلقة الموسم {season_num} - الحلقة {ep_num} لم يتم ربطها بعد.", show_alert=True)
+            else:
+                await update.message.reply_text(f"⚠️ عذراً، حلقة الموسم {season_num} - الحلقة {ep_num} لم يتم ربطها بعد.")
+        except Exception as e:
+            logger.error(f"Error sending episode: {e}")
+
+    else:
+        # حماية البوت ومنع كتابة أي كلام عشوائي غير الأزرار
+        try:
+            await update.message.delete()
+        except Exception:
+            pass
+        
+        warning_msg = await update.message.reply_text(
+            "⚠️ **عذراً، الكتابة النصية غير مسموحة هنا!**\nالرجاء استخدام الأزرار في الأسفل للتنقل.",
+            parse_mode="Markdown"
+        )
+        import asyncio
+        await asyncio.sleep(4)
+        try:
+            await warning_msg.delete()
+        except Exception:
+            pass
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.error("Exception while handling an update:", exc_info=context.error)
@@ -232,9 +234,7 @@ def main():
     application = Application.builder().token(TOKEN).build()
     
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(button_handler))
-    # معالج لحماية البوت ومنع إرسال الرسائل النصية من الكيبورد (يستقبل أي نص عدا الأوامر مثل /start)
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_messages))
     application.add_error_handler(error_handler)
 
     application.run_polling(drop_pending_updates=True, stop_signals=None)
