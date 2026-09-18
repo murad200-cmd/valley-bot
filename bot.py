@@ -18,10 +18,9 @@ from telegram.ext import (
     CommandHandler,
     MessageHandler,
     CallbackQueryHandler,
-    filters,
     ContextTypes,
+    filters,
 )
-
 
 # ============================================================
 # إعداد السجلات
@@ -34,56 +33,40 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-
+# 
 # ============================================================
 # التوكن
 # ============================================================
-# ضع التوكن الحالي نفسه في BOT_TOKEN داخل Render
-# أو ضع التوكن مباشرة بين علامتي الاقتباس إذا كنت تريد ذلك.
 
-TOKEN = os.environ.get("8695639459:AAGJ6JGYbCIky9CuosFYF6oEDze5rypI4pY")
+TOKEN = "8695639459:AAGJ6JGYbCIky9CuosFYF6oEDze5rypI4pY"
 
 if not TOKEN:
-    raise RuntimeError(
-        "لم يتم العثور على BOT_TOKEN. "
-        "ضع التوكن الحالي في Environment Variables في Render."
-    )
-
-
+    raise RuntimeError("لم يتم العثور على توكن البوت")
 # ============================================================
 # القنوات
 # ============================================================
 
 CHANNEL_ID = -1003924784582
-
 ADMIN_CHANNEL_ID = -1003956613480
 
-
 # ============================================================
-# إحصائيات وبيانات التشغيل
+# الإحصائيات
 # ============================================================
 
 unique_users = set()
-
 daily_visits = set()
-
 daily_active_users = set()
 
 daily_errors_count = 0
-
 total_episode_views = 0
 
 episode_views = {}
-
 user_last_watched = {}
-
 user_profiles = {}
-
 banned_users = set()
 
-
 # ============================================================
-# معلومات الأجزاء والحلقات
+# عدد الحلقات
 # ============================================================
 
 SEASONS_EPISODES = {
@@ -100,9 +83,8 @@ SEASONS_EPISODES = {
     11: {"sub": 0, "dub": 0},
 }
 
-
 # ============================================================
-# أرقام رسائل الحلقات
+# أرقام رسائل الحلقات داخل قناة المحتوى
 # ============================================================
 
 EPISODES_MSG_IDS = {
@@ -129,10 +111,8 @@ EPISODES_MSG_IDS = {
     (10, "dub"): {i: 1371 + i - 1 for i in range(1, 38)},
 }
 
-
 # ============================================================
 # لوحة المستخدم الرئيسية
-# نفس الأزرار تمامًا
 # ============================================================
 
 def get_main_keyboard():
@@ -149,7 +129,6 @@ def get_main_keyboard():
         resize_keyboard=True,
     )
 
-
 # ============================================================
 # الوقت
 # ============================================================
@@ -159,9 +138,8 @@ def now_string():
         "%Y-%m-%d %H:%M:%S"
     )
 
-
 # ============================================================
-# تنظيف النصوص قبل إرسالها إلى Markdown
+# تنظيف النص
 # ============================================================
 
 def safe_text(text, limit=3000):
@@ -169,19 +147,16 @@ def safe_text(text, limit=3000):
         return "لا يوجد"
 
     text = str(text)
-
     text = text.replace("\\", "\\\\")
     text = text.replace("`", "\\`")
 
     return text[:limit]
-
 
 # ============================================================
 # معلومات المستخدم
 # ============================================================
 
 def get_user_info(user):
-
     username = (
         f"@{user.username}"
         if user.username
@@ -199,19 +174,12 @@ def get_user_info(user):
         "username": username,
     }
 
-
 # ============================================================
-# التأكد أن الشخص الذي ضغط زر الإدارة مشرف في قناة الإدارة
-# لا يوجد ADMIN_IDS
+# التحقق من مشرف قناة الإدارة
 # ============================================================
 
-async def is_admin_in_channel(
-    context: ContextTypes.DEFAULT_TYPE,
-    user_id: int,
-):
-
+async def is_admin_in_channel(context, user_id):
     try:
-
         member = await context.bot.get_chat_member(
             chat_id=ADMIN_CHANNEL_ID,
             user_id=user_id,
@@ -223,13 +191,26 @@ async def is_admin_in_channel(
         )
 
     except Exception:
-
-        logger.exception(
-            "فشل التحقق من صلاحيات المدير"
-        )
-
+        logger.exception("فشل التحقق من صلاحيات المدير")
         return False
 
+# ============================================================
+# حفظ معلومات المستخدم
+# ============================================================
+
+def ensure_user_profile(user):
+    if user.id not in user_profiles:
+        user_profiles[user.id] = {
+            "first_seen": now_string(),
+            "last_seen": now_string(),
+            "phone": None,
+            "username": user.username,
+            "name": user.full_name,
+        }
+    else:
+        user_profiles[user.id]["last_seen"] = now_string()
+        user_profiles[user.id]["username"] = user.username
+        user_profiles[user.id]["name"] = user.full_name
 
 # ============================================================
 # تقييم الرسائل غير المسموحة
@@ -238,7 +219,6 @@ async def is_admin_in_channel(
 def evaluate_message_risk(message):
 
     if message.text:
-
         text = message.text.lower()
 
         dangerous_words = [
@@ -257,10 +237,7 @@ def evaluate_message_risk(message):
             "سبام",
         ]
 
-        if any(
-            word in text
-            for word in dangerous_words
-        ):
+        if any(word in text for word in dangerous_words):
             return (
                 "🔴 مرتفع",
                 "النص يحتوي على كلمات تستدعي مراجعة الإدارة.",
@@ -272,96 +249,39 @@ def evaluate_message_risk(message):
         )
 
     if message.photo:
-        return (
-            "🟡 متوسط",
-            "صورة مرسلة خارج نظام أزرار البوت.",
-        )
+        return "🟡 متوسط", "صورة مرسلة خارج النظام."
 
     if message.video:
-        return (
-            "🟡 متوسط",
-            "فيديو مرسل خارج نظام أزرار البوت.",
-        )
+        return "🟡 متوسط", "فيديو مرسل خارج النظام."
 
     if message.document:
-        return (
-            "🟠 مرتفع",
-            "ملف مرسل خارج نظام أزرار البوت.",
-        )
+        return "🟠 مرتفع", "ملف مرسل خارج النظام."
 
     if message.audio:
-        return (
-            "🟡 متوسط",
-            "ملف صوتي مرسل خارج نظام أزرار البوت.",
-        )
+        return "🟡 متوسط", "ملف صوتي مرسل خارج النظام."
 
     if message.voice:
-        return (
-            "🟡 متوسط",
-            "رسالة صوتية مرسلة خارج نظام أزرار البوت.",
-        )
+        return "🟡 متوسط", "رسالة صوتية مرسلة خارج النظام."
 
     if message.video_note:
-        return (
-            "🟡 متوسط",
-            "فيديو دائري مرسل خارج نظام أزرار البوت.",
-        )
+        return "🟡 متوسط", "فيديو دائري مرسل خارج النظام."
 
     if message.animation:
-        return (
-            "🟡 متوسط",
-            "صورة متحركة مرسلة خارج نظام أزرار البوت.",
-        )
+        return "🟡 متوسط", "صورة متحركة مرسلة خارج النظام."
 
     if message.contact:
-        return (
-            "🟡 متوسط",
-            "جهة اتصال مرسلة خارج النظام.",
-        )
+        return "🟡 متوسط", "جهة اتصال مرسلة خارج النظام."
 
     if message.location:
-        return (
-            "🟠 مرتفع",
-            "موقع جغرافي مرسل خارج النظام.",
-        )
+        return "🟠 مرتفع", "موقع جغرافي مرسل خارج النظام."
 
     if message.venue:
-        return (
-            "🟠 مرتفع",
-            "موقع/مكان مرسل خارج النظام.",
-        )
+        return "🟠 مرتفع", "مكان مرسل خارج النظام."
 
-    return (
-        "🟡 متوسط",
-        "نوع رسالة غير مسموح به.",
-    )
-
+    return "🟡 متوسط", "نوع رسالة غير مسموح به."
 
 # ============================================================
-# حفظ معلومات المستخدم
-# ============================================================
-
-def ensure_user_profile(user):
-
-    if user.id not in user_profiles:
-
-        user_profiles[user.id] = {
-            "first_seen": now_string(),
-            "last_seen": now_string(),
-            "phone": None,
-            "username": user.username,
-            "name": user.full_name,
-        }
-
-    else:
-
-        user_profiles[user.id]["last_seen"] = now_string()
-        user_profiles[user.id]["username"] = user.username
-        user_profiles[user.id]["name"] = user.full_name
-
-
-# ============================================================
-# تسجيل نشاط المستخدم في قناة الإدارة
+# إرسال نشاط المستخدم للإدارة
 # ============================================================
 
 async def send_user_activity_to_admin(
@@ -374,7 +294,6 @@ async def send_user_activity_to_admin(
     ensure_user_profile(user)
 
     info = get_user_info(user)
-
     profile = user_profiles[user.id]
 
     phone = profile.get("phone") or "غير متوفر"
@@ -382,7 +301,6 @@ async def send_user_activity_to_admin(
     last_watch = user_last_watched.get(user.id)
 
     if last_watch:
-
         type_name = (
             "مترجمة 🎬"
             if last_watch["type"] == "sub"
@@ -394,11 +312,8 @@ async def send_user_activity_to_admin(
             f"الجزء {last_watch['season']} | "
             f"الحلقة {last_watch['ep']}"
         )
-
     else:
-
         last_episode = "لم يشاهد أي حلقة"
-
 
     report = (
         "👤 **نشاط مستخدم**\n\n"
@@ -418,28 +333,19 @@ async def send_user_activity_to_admin(
     )
 
     try:
-
         await context.bot.send_message(
             chat_id=ADMIN_CHANNEL_ID,
             text=report,
             parse_mode="Markdown",
         )
-
     except Exception:
-
-        logger.exception(
-            "فشل إرسال معلومات المستخدم"
-        )
-
+        logger.exception("فشل إرسال معلومات المستخدم")
 
 # ============================================================
 # /start
 # ============================================================
 
-async def start(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user = update.effective_user
 
@@ -447,32 +353,23 @@ async def start(
         return
 
     if user.id in banned_users:
-
         await update.effective_message.reply_text(
             "🚫 تم حظرك من استخدام هذا البوت."
         )
-
         return
-
 
     ensure_user_profile(user)
 
     is_new = user.id not in unique_users
 
     if is_new:
-
         unique_users.add(user.id)
-
         status = "🆕 مستخدم جديد تماماً"
-
     else:
-
-        status = "🔄 مستخدم قديم (عاد لفتح البوت)"
-
+        status = "🔄 مستخدم قديم"
 
     daily_visits.add(user.id)
     daily_active_users.add(user.id)
-
 
     await send_user_activity_to_admin(
         context,
@@ -481,7 +378,6 @@ async def start(
         event="/start",
     )
 
-
     await update.effective_message.reply_text(
         "🐺 **أهلاً بك في بوت مسلسل وادي الذئاب الرسمي**\n\n"
         "اختر من الأزرار في الأسفل:",
@@ -489,15 +385,11 @@ async def start(
         parse_mode="Markdown",
     )
 
-
 # ============================================================
 # تقرير الرسائل غير المسموحة
 # ============================================================
 
-async def report_unauthorized_message(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
+async def report_unauthorized_message(update, context):
 
     user = update.effective_user
     message = update.effective_message
@@ -505,54 +397,39 @@ async def report_unauthorized_message(
     if not user or not message:
         return
 
-
     ensure_user_profile(user)
 
     info = get_user_info(user)
-
     profile = user_profiles[user.id]
 
     risk, reason = evaluate_message_risk(message)
 
     phone = profile.get("phone") or "غير متوفر"
 
-
     if message.text:
         message_type = "📝 نص"
-
     elif message.photo:
         message_type = "🖼️ صورة"
-
     elif message.video:
         message_type = "🎥 فيديو"
-
     elif message.document:
         message_type = "📄 ملف"
-
     elif message.audio:
         message_type = "🎵 صوت"
-
     elif message.voice:
         message_type = "🎤 رسالة صوتية"
-
     elif message.video_note:
         message_type = "⭕ فيديو دائري"
-
     elif message.animation:
         message_type = "🎞️ صورة متحركة"
-
     elif message.contact:
         message_type = "📞 جهة اتصال"
-
     elif message.location:
         message_type = "📍 موقع"
-
     elif message.venue:
         message_type = "📍 مكان"
-
     else:
         message_type = "📦 نوع آخر"
-
 
     report = (
         "🚨 **رسالة خارج الأزرار**\n\n"
@@ -574,20 +451,16 @@ async def report_unauthorized_message(
         f"🕐 الوقت: `{now_string()}`\n"
     )
 
-
     if message.text:
-
         report += (
             "\n💬 **محتوى الرسالة:**\n"
             f"`{safe_text(message.text, 3000)}`\n"
         )
 
-
     report += (
         "\n━━━━━━━━━━━━━━━━━━\n"
         "👇 **اختر الإجراء:**"
     )
-
 
     keyboard = InlineKeyboardMarkup(
         [
@@ -604,57 +477,32 @@ async def report_unauthorized_message(
         ]
     )
 
-
-    # --------------------------------------------------------
-    # إرسال التقرير إلى قناة الإدارة
-    # --------------------------------------------------------
-
     try:
-
         await context.bot.send_message(
             chat_id=ADMIN_CHANNEL_ID,
             text=report,
             parse_mode="Markdown",
             reply_markup=keyboard,
         )
-
     except Exception:
+        logger.exception("فشل إرسال تقرير الرسالة")
 
-        logger.exception(
-            "فشل إرسال تقرير الرسالة"
-        )
-
-
-    # --------------------------------------------------------
-    # نسخ الرسالة نفسها إلى قناة الإدارة
-    #
-    # لا يوجد download
-    # لا يوجد حفظ على Render
-    # --------------------------------------------------------
-
+    # نسخ الرسالة مباشرة من Telegram
+    # بدون تحميلها إلى Render
     try:
-
         await context.bot.copy_message(
             chat_id=ADMIN_CHANNEL_ID,
             from_chat_id=message.chat_id,
             message_id=message.message_id,
         )
-
     except Exception:
-
-        logger.exception(
-            "فشل نسخ الرسالة إلى قناة الإدارة"
-        )
-
+        logger.exception("فشل نسخ الرسالة إلى قناة الإدارة")
 
 # ============================================================
-# التعامل مع جميع رسائل المستخدم
+# التعامل مع الرسائل
 # ============================================================
 
-async def handle_messages(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
+async def handle_messages(update, context):
 
     global total_episode_views
 
@@ -664,28 +512,17 @@ async def handle_messages(
     if not message or not user:
         return
 
-
     user_id = user.id
 
-
-    # --------------------------------------------------------
-    # المستخدم المحظور
-    # --------------------------------------------------------
-
     if user_id in banned_users:
-
         try:
             await message.delete()
         except Exception:
             pass
-
         return
 
-
     ensure_user_profile(user)
-
     daily_active_users.add(user_id)
-
 
     # ========================================================
     # رقم الهاتف إذا شاركه المستخدم بنفسه
@@ -700,7 +537,6 @@ async def handle_messages(
             )
 
             try:
-
                 await context.bot.send_message(
                     chat_id=ADMIN_CHANNEL_ID,
                     text=(
@@ -714,15 +550,10 @@ async def handle_messages(
                     ),
                     parse_mode="Markdown",
                 )
-
             except Exception:
-
-                logger.exception(
-                    "فشل تسجيل رقم الهاتف"
-                )
+                logger.exception("فشل تسجيل رقم الهاتف")
 
         else:
-
             await report_unauthorized_message(
                 update,
                 context,
@@ -730,9 +561,7 @@ async def handle_messages(
 
         return
 
-
     text = message.text
-
 
     # ========================================================
     # النسخة المترجمة
@@ -794,7 +623,6 @@ async def handle_messages(
 
         return
 
-
     # ========================================================
     # النسخة المدبلجة
     # ========================================================
@@ -855,7 +683,6 @@ async def handle_messages(
 
         return
 
-
     # ========================================================
     # آخر حلقة شاهدتها
     # ========================================================
@@ -864,57 +691,7 @@ async def handle_messages(
 
         last_ep_info = user_last_watched.get(user_id)
 
-        if last_ep_info:
-
-            season_num = last_ep_info["season"]
-            ep_num = last_ep_info["ep"]
-            media_type = last_ep_info["type"]
-
-            type_name = (
-                "مترجمة 🎬"
-                if media_type == "sub"
-                else "مدبلجة 🎙️"
-            )
-
-            await message.reply_text(
-                f"📌 **آخر حلقة قمت بمشاهدتها:**\n"
-                f"▫️ النسخة: {type_name}\n"
-                f"▫️ الجزء: {season_num}\n"
-                f"▫️ الحلقة: {ep_num}\n\n"
-                "جاري إرسالها لك الآن...",
-                reply_markup=get_main_keyboard(),
-                parse_mode="Markdown",
-            )
-
-            msg_id = (
-                EPISODES_MSG_IDS
-                .get((season_num, media_type), {})
-                .get(ep_num)
-            )
-
-            if msg_id:
-
-                try:
-
-                    await context.bot.copy_message(
-                        chat_id=user_id,
-                        from_chat_id=CHANNEL_ID,
-                        message_id=msg_id,
-                    )
-
-                except Exception:
-
-                    logger.exception(
-                        "خطأ في إرسال آخر حلقة"
-                    )
-
-            else:
-
-                await message.reply_text(
-                    "⚠️ عذراً، لم يتم العثور على ملف الحلقة."
-                )
-
-        else:
+        if not last_ep_info:
 
             await message.reply_text(
                 "⚠️ **لم تقم بمشاهدة أي حلقة حتى الآن!**\n"
@@ -923,8 +700,52 @@ async def handle_messages(
                 parse_mode="Markdown",
             )
 
-        return
+            return
 
+        season_num = last_ep_info["season"]
+        ep_num = last_ep_info["ep"]
+        media_type = last_ep_info["type"]
+
+        type_name = (
+            "مترجمة 🎬"
+            if media_type == "sub"
+            else "مدبلجة 🎙️"
+        )
+
+        await message.reply_text(
+            f"📌 **آخر حلقة قمت بمشاهدتها:**\n"
+            f"▫️ النسخة: {type_name}\n"
+            f"▫️ الجزء: {season_num}\n"
+            f"▫️ الحلقة: {ep_num}\n\n"
+            "جاري إرسالها لك الآن...",
+            reply_markup=get_main_keyboard(),
+            parse_mode="Markdown",
+        )
+
+        msg_id = (
+            EPISODES_MSG_IDS
+            .get((season_num, media_type), {})
+            .get(ep_num)
+        )
+
+        if not msg_id:
+            await message.reply_text(
+                "⚠️ عذراً، لم يتم العثور على ملف الحلقة."
+            )
+            return
+
+        try:
+
+            await context.bot.copy_message(
+                chat_id=user_id,
+                from_chat_id=CHANNEL_ID,
+                message_id=msg_id,
+            )
+
+        except Exception:
+            logger.exception("خطأ في إرسال آخر حلقة")
+
+        return
 
     # ========================================================
     # القائمة الرئيسية
@@ -939,7 +760,6 @@ async def handle_messages(
         )
 
         return
-
 
     # ========================================================
     # اختيار الجزء
@@ -986,7 +806,6 @@ async def handle_messages(
 
                 return
 
-
             keyboard = []
             row = []
 
@@ -1002,13 +821,11 @@ async def handle_messages(
                 )
 
                 if len(row) == 5:
-
                     keyboard.append(row)
                     row = []
 
             if row:
                 keyboard.append(row)
-
 
             back_text = (
                 "🎬 النسخة المترجمة"
@@ -1023,7 +840,6 @@ async def handle_messages(
                 ]
             )
 
-
             await message.reply_text(
                 f"🎬 اختر رقم الحلقة من الجزء {season_num}:",
                 reply_markup=ReplyKeyboardMarkup(
@@ -1033,13 +849,11 @@ async def handle_messages(
             )
 
         except Exception:
-
             logger.exception(
                 "خطأ في تحليل اختيار الجزء"
             )
 
         return
-
 
     # ========================================================
     # اختيار الحلقة
@@ -1063,13 +877,11 @@ async def handle_messages(
                 "sub",
             )
 
-
             total_episodes = (
                 SEASONS_EPISODES
                 .get(season_num, {})
                 .get(media_type, 0)
             )
-
 
             if ep_num < 1 or ep_num > total_episodes:
 
@@ -1079,13 +891,11 @@ async def handle_messages(
 
                 return
 
-
             msg_id = (
                 EPISODES_MSG_IDS
                 .get((season_num, media_type), {})
                 .get(ep_num)
             )
-
 
             if not msg_id:
 
@@ -1097,11 +907,7 @@ async def handle_messages(
 
                 return
 
-
-            # ------------------------------------------------
             # إرسال الحلقة مباشرة من Telegram
-            # ------------------------------------------------
-
             try:
 
                 await context.bot.copy_message(
@@ -1117,25 +923,17 @@ async def handle_messages(
                 )
 
                 await message.reply_text(
-                    "⚠️ حدث خطأ أثناء إرسال الحلقة."
+                    "⚠️ حدث خطأ أثناء إرسال الحلقة، حاول مرة أخرى."
                 )
 
                 return
 
-
-            # ------------------------------------------------
-            # الحفظ بعد نجاح الإرسال فقط
-            # ------------------------------------------------
-
+            # تسجيل المشاهدة فقط بعد نجاح الإرسال
             user_last_watched[user_id] = {
                 "season": season_num,
                 "ep": ep_num,
                 "type": media_type,
             }
-
-
-            total_episode_views += 1
-
 
             key = (
                 season_num,
@@ -1147,43 +945,7 @@ async def handle_messages(
                 episode_views.get(key, 0) + 1
             )
 
-
-            # ------------------------------------------------
-            # تسجيل المشاهدة في قناة الإدارة
-            # ------------------------------------------------
-
-            try:
-
-                type_name = (
-                    "مترجمة 🎬"
-                    if media_type == "sub"
-                    else "مدبلجة 🎙️"
-                )
-
-                await context.bot.send_message(
-                    chat_id=ADMIN_CHANNEL_ID,
-                    text=(
-                        "📺 **مشاهدة حلقة**\n\n"
-                        "━━━━━━━━━━━━━━━━━━\n"
-                        f"👤 المستخدم: {safe_text(user.full_name, 500)}\n"
-                        f"🔗 المعرف: "
-                        f"{safe_text('@' + user.username if user.username else 'لا يوجد', 500)}\n"
-                        f"🆔 User ID: `{user_id}`\n"
-                        f"🎬 النسخة: {type_name}\n"
-                        f"📂 الجزء: {season_num}\n"
-                        f"🎞️ الحلقة: {ep_num}\n"
-                        f"🕐 الوقت: `{now_string()}`\n"
-                        f"📊 إجمالي المشاهدات: "
-                        f"**{total_episode_views}**"
-                    ),
-                    parse_mode="Markdown",
-                )
-
-            except Exception:
-
-                logger.exception(
-                    "فشل تسجيل المشاهدة"
-                )
+            total_episode_views += 1
 
         except Exception:
 
@@ -1192,7 +954,6 @@ async def handle_messages(
             )
 
         return
-
 
     # ========================================================
     # أي شيء آخر = رسالة غير مسموحة
@@ -1203,18 +964,11 @@ async def handle_messages(
         context,
     )
 
-
-    # حذف رسالة المستخدم من محادثته
     try:
-
         await message.delete()
-
     except Exception:
-
         pass
 
-
-    # رسالة تحذير مؤقتة
     try:
 
         warning_msg = await context.bot.send_message(
@@ -1234,36 +988,23 @@ async def handle_messages(
             pass
 
     except Exception:
-
-        logger.exception(
-            "فشل إرسال رسالة التحذير"
-        )
-
+        logger.exception("فشل إرسال رسالة التحذير")
 
 # ============================================================
 # أزرار الإدارة
 # ============================================================
 
-async def admin_callback(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
+async def admin_callback(update, context):
 
     query = update.callback_query
 
     if not query:
         return
 
-
-    # --------------------------------------------------------
-    # التحقق من أن الضاغط مشرف في قناة الإدارة
-    # --------------------------------------------------------
-
     authorized = await is_admin_in_channel(
         context,
         query.from_user.id,
     )
-
 
     if not authorized:
 
@@ -1274,12 +1015,9 @@ async def admin_callback(
 
         return
 
-
     await query.answer()
 
-
     data = query.data or ""
-
 
     try:
 
@@ -1301,7 +1039,6 @@ async def admin_callback(
 
         return
 
-
     # ========================================================
     # حظر المستخدم
     # ========================================================
@@ -1312,20 +1049,15 @@ async def admin_callback(
             target_user_id
         )
 
-
         try:
 
             await context.bot.send_message(
                 chat_id=target_user_id,
-                text=(
-                    "🚫 تم حظرك من استخدام البوت."
-                ),
+                text="🚫 تم حظرك من استخدام البوت.",
             )
 
         except Exception:
-
             pass
-
 
         try:
 
@@ -1334,9 +1066,7 @@ async def admin_callback(
             )
 
         except Exception:
-
             pass
-
 
         try:
 
@@ -1353,13 +1083,9 @@ async def admin_callback(
             )
 
         except Exception:
-
-            logger.exception(
-                "فشل تسجيل الحظر"
-            )
+            logger.exception("فشل تسجيل الحظر")
 
         return
-
 
     # ========================================================
     # إبقاء المستخدم
@@ -1374,9 +1100,7 @@ async def admin_callback(
             )
 
         except Exception:
-
             pass
-
 
         try:
 
@@ -1393,34 +1117,25 @@ async def admin_callback(
             )
 
         except Exception:
-
             logger.exception(
                 "فشل تسجيل عملية الإبقاء"
             )
-
-        return
-
 
 # ============================================================
 # فك الحظر
 # ============================================================
 
-async def unban_command(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
+async def unban_command(update, context):
 
     user = update.effective_user
 
     if not user:
         return
 
-
     authorized = await is_admin_in_channel(
         context,
         user.id,
     )
-
 
     if not authorized:
 
@@ -1430,7 +1145,6 @@ async def unban_command(
 
         return
 
-
     if not context.args:
 
         await update.effective_message.reply_text(
@@ -1438,7 +1152,6 @@ async def unban_command(
         )
 
         return
-
 
     try:
 
@@ -1454,24 +1167,21 @@ async def unban_command(
 
         return
 
-
     banned_users.discard(
         target_user_id
     )
-
 
     await update.effective_message.reply_text(
         f"✅ تم فك حظر المستخدم:\n`{target_user_id}`",
         parse_mode="Markdown",
     )
 
-
     try:
 
         await context.bot.send_message(
             chat_id=ADMIN_CHANNEL_ID,
             text=(
-                "🟢 **تم فك حظر مستخدم**\n\n"
+                "✅ **تم فك حظر مستخدم**\n\n"
                 f"🆔 User ID: `{target_user_id}`\n"
                 f"👮 بواسطة المشرف: `{user.id}`\n"
                 f"🕐 الوقت: `{now_string()}`"
@@ -1480,32 +1190,25 @@ async def unban_command(
         )
 
     except Exception:
-
         logger.exception(
             "فشل تسجيل فك الحظر"
         )
-
 
 # ============================================================
 # الإحصائيات
 # ============================================================
 
-async def stats_command(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
+async def stats_command(update, context):
 
     user = update.effective_user
 
     if not user:
         return
 
-
     authorized = await is_admin_in_channel(
         context,
         user.id,
     )
-
 
     if not authorized:
 
@@ -1514,7 +1217,6 @@ async def stats_command(
         )
 
         return
-
 
     report = (
         "📊 **إحصائيات البوت الحالية**\n\n"
@@ -1529,33 +1231,26 @@ async def stats_command(
         "━━━━━━━━━━━━━━━━━━"
     )
 
-
     await update.effective_message.reply_text(
         report,
         parse_mode="Markdown",
     )
 
-
 # ============================================================
 # أكثر الحلقات مشاهدة
 # ============================================================
 
-async def most_watched_command(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
+async def most_watched_command(update, context):
 
     user = update.effective_user
 
     if not user:
         return
 
-
     authorized = await is_admin_in_channel(
         context,
         user.id,
     )
-
 
     if not authorized:
 
@@ -1565,7 +1260,6 @@ async def most_watched_command(
 
         return
 
-
     if not episode_views:
 
         await update.effective_message.reply_text(
@@ -1574,18 +1268,15 @@ async def most_watched_command(
 
         return
 
-
     sorted_items = sorted(
         episode_views.items(),
         key=lambda item: item[1],
         reverse=True,
     )[:10]
 
-
     lines = [
         "🔥 **أكثر 10 حلقات مشاهدة**\n"
     ]
-
 
     for index, (key, views) in enumerate(
         sorted_items,
@@ -1606,25 +1297,20 @@ async def most_watched_command(
             f"{type_name} — **{views}** مشاهدة"
         )
 
-
     await update.effective_message.reply_text(
         "\n".join(lines),
         parse_mode="Markdown",
     )
 
-
 # ============================================================
 # التقرير الدوري
 # ============================================================
 
-async def daily_report_job(
-    context: ContextTypes.DEFAULT_TYPE,
-):
+async def daily_report_job(context):
 
     global daily_visits
     global daily_active_users
     global daily_errors_count
-
 
     report = (
         "📊 **التقرير الدوري للبوت**\n\n"
@@ -1645,7 +1331,6 @@ async def daily_report_job(
         "━━━━━━━━━━━━━━━━━━"
     )
 
-
     try:
 
         await context.bot.send_message(
@@ -1655,36 +1340,28 @@ async def daily_report_job(
         )
 
     except Exception:
-
         logger.exception(
             "فشل إرسال التقرير الدوري"
         )
-
 
     daily_visits.clear()
     daily_active_users.clear()
     daily_errors_count = 0
 
-
 # ============================================================
 # تسجيل الأخطاء
 # ============================================================
 
-async def error_handler(
-    update: object,
-    context: ContextTypes.DEFAULT_TYPE,
-):
+async def error_handler(update, context):
 
     global daily_errors_count
 
     daily_errors_count += 1
 
-
     logger.error(
         "Exception while handling an update:",
         exc_info=context.error,
     )
-
 
     try:
 
@@ -1693,22 +1370,19 @@ async def error_handler(
             text=(
                 "⚠️ **خطأ في البوت**\n\n"
                 f"🕐 الوقت: `{now_string()}`\n"
-                f"📛 الخطأ:\n"
+                "📛 الخطأ:\n"
                 f"`{safe_text(str(context.error), 3000)}`"
             ),
             parse_mode="Markdown",
         )
 
     except Exception:
-
         logger.exception(
             "فشل إرسال الخطأ للإدارة"
         )
 
-
 # ============================================================
 # Web Server الخاص بـ Render
-# لا يتم تخزين أي ملفات
 # ============================================================
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -1728,15 +1402,12 @@ class HealthHandler(BaseHTTPRequestHandler):
             b"Bot is running."
         )
 
-
-    def log_message(
-        self,
-        format,
-        *args,
-    ):
-
+    def log_message(self, format, *args):
         return
 
+# ============================================================
+# تشغيل Web Server
+# ============================================================
 
 def run_web_server():
 
@@ -1747,20 +1418,16 @@ def run_web_server():
         )
     )
 
-
     server = HTTPServer(
         ("0.0.0.0", port),
         HealthHandler,
     )
 
-
     logger.info(
         f"Health server running on port {port}"
     )
 
-
     server.serve_forever()
-
 
 # ============================================================
 # Main
@@ -1768,10 +1435,7 @@ def run_web_server():
 
 def main():
 
-    # --------------------------------------------------------
     # Render Health Server
-    # --------------------------------------------------------
-
     server_thread = threading.Thread(
         target=run_web_server,
         daemon=True,
@@ -1779,11 +1443,7 @@ def main():
 
     server_thread.start()
 
-
-    # --------------------------------------------------------
     # Telegram Application
-    # --------------------------------------------------------
-
     application = (
         Application
         .builder()
@@ -1791,11 +1451,7 @@ def main():
         .build()
     )
 
-
-    # --------------------------------------------------------
     # التقرير الدوري كل 24 ساعة
-    # --------------------------------------------------------
-
     if application.job_queue:
 
         application.job_queue.run_repeating(
@@ -1811,10 +1467,9 @@ def main():
             "ثبت python-telegram-bot[job-queue]"
         )
 
-
-    # --------------------------------------------------------
+    # ========================================================
     # الأوامر
-    # --------------------------------------------------------
+    # ========================================================
 
     application.add_handler(
         CommandHandler(
@@ -1823,14 +1478,12 @@ def main():
         )
     )
 
-
     application.add_handler(
         CommandHandler(
             "stats",
             stats_command,
         )
     )
-
 
     application.add_handler(
         CommandHandler(
@@ -1839,7 +1492,6 @@ def main():
         )
     )
 
-
     application.add_handler(
         CommandHandler(
             "unban",
@@ -1847,10 +1499,9 @@ def main():
         )
     )
 
-
-    # --------------------------------------------------------
+    # ========================================================
     # أزرار الإدارة
-    # --------------------------------------------------------
+    # ========================================================
 
     application.add_handler(
         CallbackQueryHandler(
@@ -1859,11 +1510,9 @@ def main():
         )
     )
 
-
-    # --------------------------------------------------------
+    # ========================================================
     # جميع رسائل المستخدمين
-    # نصوص + صور + فيديو + ملفات + صوت + غيرها
-    # --------------------------------------------------------
+    # ========================================================
 
     application.add_handler(
         MessageHandler(
@@ -1872,30 +1521,23 @@ def main():
         )
     )
 
-
-    # --------------------------------------------------------
+    # ========================================================
     # الأخطاء
-    # --------------------------------------------------------
+    # ========================================================
 
     application.add_error_handler(
         error_handler
     )
 
-
     logger.info(
         "Starting Telegram bot..."
     )
 
-
-    # --------------------------------------------------------
     # تشغيل البوت
-    # --------------------------------------------------------
-
     application.run_polling(
         drop_pending_updates=True,
         stop_signals=None,
     )
-
 
 # ============================================================
 # التشغيل
