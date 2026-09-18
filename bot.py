@@ -74,7 +74,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "🐺 **أهلاً بك في بوت مسلسل وادي الذئاب الرسمي**\n\nاختر من الأزرار في الأسفل:",
-        reply_markup=get_main_keyword(),
+        reply_markup=get_main_keyboard(),
         parse_mode="Markdown"
     )
 
@@ -219,7 +219,7 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
     if action == "ban":
         banned_users.add(target_user_id)
         try:
-            await query.edit_message_text(text=f"🛑 **تم حظر المستخدم (ID: `{target_user_id}`) بنجاح.**", parse_Mode="Markdown")
+            await query.edit_message_text(text=f"🛑 **تم حظر المستخدم (ID: `{target_user_id}`) بنجاح.**", parse_mode="Markdown")
         except:
             pass
     elif action == "pass":
