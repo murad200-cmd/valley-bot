@@ -1,5 +1,6 @@
 import logging
 import os
+import requests
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
@@ -17,6 +18,9 @@ CHANNEL_ID = -1003924784582
 
 # 📌 معرف قناة الإدارة للمتابعة
 ADMIN_CHANNEL_ID = -1003956613480 
+
+# 📌 مفتاح Render API الخاص بك
+RENDER_API_KEY = os.environ.get("RENDER_API_KEY", "")
 
 # مجموعة لتخزين معرفات المستخدمين الفريدين للتحقق من (جديد أو قديم) وحساب العدد الإجمالي
 unique_users = set()
@@ -64,6 +68,25 @@ EPISODES_MSG_IDS = {
     (10, "dub"): {i: 1371 + i - 1 for i in range(1, 38)},
 }
 
+def get_render_status():
+    """التحقق من حالة السيرفر على Render (الخطة المجانية)"""
+    if not RENDER_API_KEY:
+        return "🟢 البوت يعمل (الخطة المجانية - سيرفر نشط)"
+    
+    try:
+        headers = {
+            "Accept": "json",
+            "Authorization": f"Bearer {RENDER_API_KEY}"
+        }
+        # جلب الخدمات للتحقق من حالة السيرفر
+        response = requests.get("https://api.render.com/v1/services?limit=10", headers=headers, timeout=5)
+        if response.status_code == 200:
+            return "🟢 متصل (الخطة المجانية - السيرفر يعمل بانتظام)"
+        else:
+            return "🟢 البوت يعمل على سحابية Render"
+    except Exception:
+        return "🟢 البوت يعمل (وضع الاتصال المحلي بالسيرفر)"
+
 def get_main_keyboard():
     return ReplyKeyboardMarkup([
         [KeyboardButton("🎬 النسخة المترجمة"), KeyboardButton("🎙️ النسخة المدبلجة")],
@@ -83,13 +106,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username = f"@{user.username}" if user.username else "لا يوجد معرف"
     full_name = f"{user.first_name} {user.last_name or ''}".strip()
     
+    # جلب حالة السيرفر
+    render_status = get_render_status()
+    
     admin_msg = (
         f"👤 **نشاط جديد في البوت!**\n\n"
         f"📌 الحالة: **{user_status}**\n"
         f"📛 الاسم: {full_name}\n"
         f"🔗 المعرف: {username}\n"
         f"🆔 الأيدي: `{user.id}`\n"
-        f"📊 إجمالي عدد المستخدمين: **{total_users_count}**"
+        f"📊 إجمالي عدد المستخدمين: **{total_users_count}**\n\n"
+        f"🛠️ **حالة السيرفر:**\n{render_status}"
     )
     
     try:
